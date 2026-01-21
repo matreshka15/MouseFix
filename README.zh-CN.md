@@ -80,8 +80,10 @@
 
 | 架构 | 大小 | 下载链接 |
 |------|------|---------|
-| 32位 (x86) | ~112 KB | [MouseFix (x86)](https://github.com/marvinlehmann/Mouse-Debouncer/releases/latest) |
-| 64位 (x64) | ~117 KB | [MouseFix (x64)](https://github.com/marvinlehmann/Mouse-Debouncer/releases/latest) |
+| 32位 (x86) | ~112 KB | [MouseFix-x86.exe](https://github.com/matreshka15/MouseFix/releases/download/latest/MouseFix-x86.exe) |
+| 64位 (x64) | ~117 KB | [MouseFix-x64.exe](https://github.com/matreshka15/MouseFix/releases/download/latest/MouseFix-x64.exe) |
+
+[查看所有版本](https://github.com/matreshka15/MouseFix/releases)
 
 **选择哪个版本？**
 - **64位版本**：适合大多数现代电脑（推荐）
@@ -130,6 +132,7 @@ A: 添加到杀毒软件白名单。程序使用系统级鼠标钩子，但不�
 ## 🙏 致谢
 
 - **原始概念**：[marvinlehmann](https://github.com/marvinlehmann)
+- **分支改进**：[matreshka15](https://github.com/matreshka15)
 
 ---
 

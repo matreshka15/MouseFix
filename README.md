@@ -80,8 +80,10 @@ Toggle each mouse button independently:
 
 | Architecture | Size | Download |
 |--------------|------|----------|
-| 32-bit (x86) | ~112 KB | [MouseFix (x86)](https://github.com/marvinlehmann/Mouse-Debouncer/releases/latest) |
-| 64-bit (x64) | ~117 KB | [MouseFix (x64)](https://github.com/marvinlehmann/Mouse-Debouncer/releases/latest) |
+| 32-bit (x86) | ~112 KB | [MouseFix-x86.exe](https://github.com/matreshka15/MouseFix/releases/download/latest/MouseFix-x86.exe) |
+| 64-bit (x64) | ~117 KB | [MouseFix-x64.exe](https://github.com/matreshka15/MouseFix/releases/download/latest/MouseFix-x64.exe) |
+
+[View all releases](https://github.com/matreshka15/MouseFix/releases)
 
 **Which version?**
 - **64-bit** for most modern computers (recommended)
@@ -130,6 +132,7 @@ This project is licensed under the MIT License - see [LICENSE](LICENSE) file for
 ## 🙏 Credits
 
 - Original concept: [marvinlehmann](https://github.com/marvinlehmann)
+- Forked and improved by: [matreshka15](https://github.com/matreshka15)
 
 ---
 
