@@ -30,10 +30,10 @@
 
 **MouseFix 解决方案：**
 
-✅ **智能过滤误触**：通过时间阈值过滤掉短时间内重复的点击  
-✅ **滚轮防抖**：防止滚轮反向滚动和跳页  
-✅ **即插即用**：无需配置，默认设置即可生效  
-✅ **零干扰**：静默运行，不影响正常使用  
+✅ **智能过滤误触**：通过时间阈值过滤掉短时间内重复的点击
+✅ **滚轮防抖**：防止滚轮反向滚动和跳页
+✅ **即插即用**：无需配置，默认设置即可生效
+✅ **零干扰**：静默运行，不影响正常使用
 ✅ **完全免费**：开源软件，永久免费使用
 
 ---
@@ -77,11 +77,6 @@
 ## 📥 下载
 
 ### 最新版本
-
-| 架构 | 大小 | 下载链接 |
-|------|------|---------|
-| 32位 (x86) | ~112 KB | [MouseFix-x86.exe](https://github.com/matreshka15/MouseFix/releases/download/latest/MouseFix-x86.exe) |
-| 64位 (x64) | ~117 KB | [MouseFix-x64.exe](https://github.com/matreshka15/MouseFix/releases/download/latest/MouseFix-x64.exe) |
 
 [查看所有版本](https://github.com/matreshka15/MouseFix/releases)
 

@@ -30,10 +30,10 @@ Most likely "switch bounce" - your mouse's micro-switch contacts have worn out, 
 
 **MouseFix Solution:**
 
-✅ **Smart debounce filtering** - Filters out rapid repeated clicks  
-✅ **Wheel glitch prevention** - Stops reverse scrolling and page jumps  
-✅ **Plug and play** - Works immediately with default settings  
-✅ **Zero interference** - Runs silently in the background  
+✅ **Smart debounce filtering** - Filters out rapid repeated clicks
+✅ **Wheel glitch prevention** - Stops reverse scrolling and page jumps
+✅ **Plug and play** - Works immediately with default settings
+✅ **Zero interference** - Runs silently in the background
 ✅ **Completely free** - Open source, forever free
 
 ---
@@ -77,11 +77,6 @@ Toggle each mouse button independently:
 ## 📥 Download
 
 ### Latest Release
-
-| Architecture | Size | Download |
-|--------------|------|----------|
-| 32-bit (x86) | ~112 KB | [MouseFix-x86.exe](https://github.com/matreshka15/MouseFix/releases/download/latest/MouseFix-x86.exe) |
-| 64-bit (x64) | ~117 KB | [MouseFix-x64.exe](https://github.com/matreshka15/MouseFix/releases/download/latest/MouseFix-x64.exe) |
 
 [View all releases](https://github.com/matreshka15/MouseFix/releases)
 
