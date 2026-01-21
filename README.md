@@ -99,6 +99,22 @@ Toggle each mouse button independently:
 
 ---
 
+## 🔧 Auto-Startup Configuration
+
+Use the provided PowerShell script to configure MouseFix to start automatically:
+
+1. **Run** `add_to_startup.ps1` (right-click and select "Run with PowerShell")
+2. **Select** a startup method:
+   - **Startup Folder** (recommended) - Easy to manage, visible in startup apps
+   - **Registry** - Hidden system-level startup
+3. **Done** - MouseFix will launch automatically on next login
+
+To remove auto-startup, run the script again and select "Remove Startup".
+
+**Tip:** Press `Win+R` and type `shell:startup` to view startup folder contents.
+
+---
+
 ## ❓ Common Issues
 
 **Q: Still having false clicks?**

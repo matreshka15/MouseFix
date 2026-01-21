@@ -24,8 +24,8 @@ LANGUAGE LANG_ENGLISH, SUBLANG_NEUTRAL
 //
 
 VS_VERSION_INFO VERSIONINFO
- FILEVERSION 0,9,1,0
- PRODUCTVERSION 0,9,1,0
+ FILEVERSION 1,0,0,0
+ PRODUCTVERSION 1,0,0,0
  FILEFLAGSMASK 0x3fL
 #ifdef _DEBUG
  FILEFLAGS 0x1L
@@ -40,14 +40,14 @@ BEGIN
     BEGIN
         BLOCK "000904b0"
         BEGIN
-            VALUE "CompanyName", "Marvin Lehmann"
+            VALUE "CompanyName", "matreshka15"
             VALUE "FileDescription", "MouseFix"
-            VALUE "FileVersion", "0.9.1.0"
+            VALUE "FileVersion", "1.0.0.0"
             VALUE "InternalName", "MouseFix.exe"
-            VALUE "LegalCopyright", "Copyright ? Marvin Lehmann 2017"
+            VALUE "LegalCopyright", "Copyright (C) matreshka15 2025"
             VALUE "OriginalFilename", "MouseFix.exe"
             VALUE "ProductName", "MouseFix"
-            VALUE "ProductVersion", "0.9.1.0"
+            VALUE "ProductVersion", "1.0.0.0"
         END
     END
     BLOCK "VarFileInfo"
