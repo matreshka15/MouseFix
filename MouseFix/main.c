@@ -2,8 +2,6 @@
 #pragma comment(lib, "Winmm.lib")
 #pragma comment(linker,"/manifestdependency:\"type='win32' name='Microsoft.Windows.Common-Controls' version='6.0.0.0' processorArchitecture='*' publicKeyToken='6595b64144ccf1df' language='*'\"")
 #define STRICT
-#define OPTPARSE_IMPLEMENTATION
-#define OPTPARSE_API static
 #define _CRT_SECURE_NO_WARNINGS
 #include <windows.h>
 #include <Windowsx.h>
@@ -14,7 +12,6 @@
 #include <wchar.h>
 #include <Strsafe.h>
 #include <stdio.h>
-#include "optparse.h"
 #include "resource.h"
 #include "menu_ids.h"
 

@@ -130,7 +130,6 @@ A: 添加到杀毒软件白名单。程序使用系统级鼠标钩子，但不�
 ## 🙏 致谢
 
 - **原始概念**：[marvinlehmann](https://github.com/marvinlehmann)
-- **Optparse 库**：[skeeto](https://github.com/skeeto/Optparse)
 
 ---
 

@@ -130,7 +130,6 @@ This project is licensed under the MIT License - see [LICENSE](LICENSE) file for
 ## 🙏 Credits
 
 - Original concept: [marvinlehmann](https://github.com/marvinlehmann)
-- Optparse library: [skeeto](https://github.com/skeeto/Optparse)
 
 ---
 
