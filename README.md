@@ -30,11 +30,11 @@ Most likely "switch bounce" - your mouse's micro-switch contacts have worn out, 
 
 **MouseFix Solution:**
 
-✅ **Smart debounce filtering** - Filters out rapid repeated clicks
-✅ **Wheel glitch prevention** - Stops reverse scrolling and page jumps
-✅ **Plug and play** - Works immediately with default settings
-✅ **Zero interference** - Runs silently in the background
-✅ **Completely free** - Open source, forever free
+- ✅ **Smart debounce filtering** - Filters out rapid repeated clicks
+- ✅ **Wheel glitch prevention** - Stops reverse scrolling and page jumps
+- ✅ **Plug and play** - Works immediately with default settings
+- ✅ **Zero interference** - Runs silently in the background
+- ✅ **Completely free** - Open source, forever free
 
 ---
 
