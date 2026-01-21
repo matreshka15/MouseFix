@@ -1,0 +1,39 @@
+# Build outputs
+bin/
+*.obj
+*.pdb
+*.ilk
+*.exe
+*.dll
+*.lib
+*.exp
+*.res
+*.idb
+*.tlog
+*.lastbuildstate
+*.iobj
+*.ipdb
+*.recipe
+
+# Visual Studio
+.vs/
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+*.vcxproj.user
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyc
+.Python
+*.so
+*.egg-info/
+
+# Temporary files
+*.tmp
+*.temp
+*.log
+*.cache
