@@ -1,12 +1,16 @@
 #include "mouse_hook.h"
 #include <stdint.h>
+#include <windows.h>
 
-static MouseHookManager* g_manager = NULL;
+static MouseHookManager *g_manager = NULL;
 
 // Low-level mouse hook callback
 static LRESULT CALLBACK LowLevelMouseProc(int nCode, WPARAM wParam, LPARAM lParam)
 {
-	if (nCode == HC_ACTION && g_manager && g_manager->callback)
+	// Read g_manager atomically to avoid race condition
+	MouseHookManager *manager = (MouseHookManager *)InterlockedExchangePointer((PVOID *)&g_manager, g_manager);
+
+	if (nCode == HC_ACTION && manager && manager->callback)
 	{
 		if (wParam != WM_MOUSEMOVE)
 		{
@@ -22,7 +26,7 @@ static LRESULT CALLBACK LowLevelMouseProc(int nCode, WPARAM wParam, LPARAM lPara
 				if (wParam == WM_MOUSEWHEEL)
 				{
 					int32_t delta = GET_WHEEL_DELTA_WPARAM(pdata->mouseData);
-					event.timestamp = ((uint64_t)GetTickCount() << 32) | (uint32_t)(delta & 0xFFFFFFFF);
+					event.timestamp = ((uint64_t)GetTickCount64() << 32) | (uint32_t)(delta & 0xFFFFFFFF);
 				}
 				else
 				{
@@ -41,7 +45,7 @@ static LRESULT CALLBACK LowLevelMouseProc(int nCode, WPARAM wParam, LPARAM lPara
 }
 
 // Initialize mouse hook manager
-bool mouse_hook_init(MouseHookManager* manager, MouseHookCallback callback, void* user_data)
+bool mouse_hook_init(MouseHookManager *manager, MouseHookCallback callback, void *user_data)
 {
 	if (!manager || !callback)
 		return false;
@@ -56,7 +60,7 @@ bool mouse_hook_init(MouseHookManager* manager, MouseHookCallback callback, void
 }
 
 // Install mouse hook
-bool mouse_hook_install(MouseHookManager* manager)
+bool mouse_hook_install(MouseHookManager *manager)
 {
 	if (!manager)
 		return false;
@@ -70,7 +74,7 @@ bool mouse_hook_install(MouseHookManager* manager)
 }
 
 // Uninstall mouse hook
-void mouse_hook_uninstall(MouseHookManager* manager)
+void mouse_hook_uninstall(MouseHookManager *manager)
 {
 	if (!manager)
 		return;
@@ -106,5 +110,5 @@ MouseButton mouse_hook_get_button(WPARAM wParam, PMSLLHOOKSTRUCT pdata)
 bool mouse_hook_is_button_down(WPARAM wParam)
 {
 	return (wParam == WM_LBUTTONDOWN || wParam == WM_RBUTTONDOWN ||
-	        wParam == WM_MBUTTONDOWN || wParam == WM_XBUTTONDOWN);
+			wParam == WM_MBUTTONDOWN || wParam == WM_XBUTTONDOWN);
 }

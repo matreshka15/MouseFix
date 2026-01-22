@@ -5,7 +5,7 @@
 #include <commctrl.h>
 
 // Initialize tray icon manager
-bool tray_icon_init(TrayIconManager* manager, HWND hwnd, HINSTANCE hInstance, int icon_id)
+bool tray_icon_init(TrayIconManager *manager, HWND hwnd, HINSTANCE hInstance, int icon_id)
 {
 	if (!manager || !hwnd)
 		return false;
@@ -35,7 +35,7 @@ bool tray_icon_init(TrayIconManager* manager, HWND hwnd, HINSTANCE hInstance, in
 }
 
 // Add icon to system tray
-bool tray_icon_add(TrayIconManager* manager)
+bool tray_icon_add(TrayIconManager *manager)
 {
 	if (!manager)
 		return false;
@@ -51,7 +51,7 @@ bool tray_icon_add(TrayIconManager* manager)
 }
 
 // Remove icon from system tray
-void tray_icon_remove(TrayIconManager* manager)
+void tray_icon_remove(TrayIconManager *manager)
 {
 	if (!manager)
 		return;
@@ -70,7 +70,7 @@ void tray_icon_remove(TrayIconManager* manager)
 }
 
 // Restore icon after explorer crash or screen resolution change
-bool tray_icon_restore(TrayIconManager* manager)
+bool tray_icon_restore(TrayIconManager *manager)
 {
 	if (!manager)
 		return false;
@@ -87,7 +87,7 @@ bool tray_icon_restore(TrayIconManager* manager)
 }
 
 // Update tooltip text
-bool tray_icon_set_tooltip(TrayIconManager* manager, const wchar_t* tooltip)
+bool tray_icon_set_tooltip(TrayIconManager *manager, const wchar_t *tooltip)
 {
 	if (!manager || !tooltip)
 		return false;
@@ -103,7 +103,7 @@ bool tray_icon_set_tooltip(TrayIconManager* manager, const wchar_t* tooltip)
 }
 
 // Show balloon notification
-bool tray_icon_show_balloon(TrayIconManager* manager, const wchar_t* title, const wchar_t* text, DWORD info_flags, UINT timeout)
+bool tray_icon_show_balloon(TrayIconManager *manager, const wchar_t *title, const wchar_t *text, DWORD info_flags, UINT timeout)
 {
 	if (!manager || !title || !text)
 		return false;
@@ -125,7 +125,7 @@ bool tray_icon_show_balloon(TrayIconManager* manager, const wchar_t* title, cons
 }
 
 // Handle taskbar recreated message
-void tray_icon_handle_taskbar_created(TrayIconManager* manager)
+void tray_icon_handle_taskbar_created(TrayIconManager *manager)
 {
 	if (!manager)
 		return;

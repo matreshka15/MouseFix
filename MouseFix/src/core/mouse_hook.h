@@ -26,25 +26,25 @@ typedef struct
 } MouseEvent;
 
 // Mouse hook callback function type
-typedef LRESULT (CALLBACK *MouseHookCallback)(const MouseEvent* event, void* user_data);
+typedef LRESULT(CALLBACK *MouseHookCallback)(const MouseEvent *event, void *user_data);
 
 // Mouse hook manager
 typedef struct
 {
 	HHOOK hook;
 	MouseHookCallback callback;
-	void* user_data;
+	void *user_data;
 	bool installed;
 } MouseHookManager;
 
 // Initialize mouse hook manager
-bool mouse_hook_init(MouseHookManager* manager, MouseHookCallback callback, void* user_data);
+bool mouse_hook_init(MouseHookManager *manager, MouseHookCallback callback, void *user_data);
 
 // Install mouse hook
-bool mouse_hook_install(MouseHookManager* manager);
+bool mouse_hook_install(MouseHookManager *manager);
 
 // Uninstall mouse hook
-void mouse_hook_uninstall(MouseHookManager* manager);
+void mouse_hook_uninstall(MouseHookManager *manager);
 
 // Get button from WPARAM and MSLLHOOKSTRUCT
 MouseButton mouse_hook_get_button(WPARAM wParam, PMSLLHOOKSTRUCT pdata);

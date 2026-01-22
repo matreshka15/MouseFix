@@ -1,8 +1,8 @@
 #pragma once
 
 // Main menu IDs
-#define WM_NOTIFYICON	(WM_USER + 1)
-#define IDM_EXIT		(WM_USER + 10)
+#define WM_NOTIFYICON (WM_USER + 1)
+#define IDM_EXIT (WM_USER + 10)
 #define IDM_TOGGLE_ENABLE (WM_USER + 11)
 #define IDM_RESET_STATS (WM_USER + 12)
 
@@ -22,3 +22,8 @@
 #define IDM_TOGGLE_X1 (WM_USER + 33)
 #define IDM_TOGGLE_X2 (WM_USER + 34)
 #define IDM_TOGGLE_WHEEL (WM_USER + 35)
+
+// About menu IDs
+#define IDM_ABOUT (WM_USER + 40)
+#define IDM_ABOUT_GITHUB (WM_USER + 41)
+#define IDM_ABOUT_VERSION (WM_USER + 42)

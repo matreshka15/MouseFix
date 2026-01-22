@@ -1,9 +1,77 @@
 #include "context_menu.h"
 #include "../../menu_ids.h"
+#include "../../version.h"
 #include <strsafe.h>
 
+// Constants
+#define STATISTICS_BUFFER_SIZE 128
+#define THRESHOLD_TEXT_BUFFER_SIZE 32
+#define BUTTON_MENU_TEXT_BUFFER_SIZE 64
+#define MENU_ID_BUTTON_MULTIPLIER 100
+
+// Button thresholds (3 presets matching global Presets + custom)
+static const int BUTTON_THRESHOLDS[] = {40, 60, 70};
+static const int WHEEL_THRESHOLDS[] = {20, 30, 35};
+static const int BUTTON_THRESHOLD_COUNT = 3;
+static const int WHEEL_THRESHOLD_COUNT = 3;
+
+// Button configuration
+static const MouseButton BUTTON_TYPES[] = {
+	MOUSE_BUTTON_LEFT,
+	MOUSE_BUTTON_RIGHT,
+	MOUSE_BUTTON_MIDDLE,
+	MOUSE_BUTTON_X1,
+	MOUSE_BUTTON_X2};
+static const int BUTTON_TYPE_COUNT = 5;
+
+// Add threshold menu items to a submenu
+// Parameters:
+//   hMenu - Handle to the submenu to add items to
+//   button - The mouse button this submenu is for
+//   thresholds - Array of threshold values in milliseconds
+//   threshold_count - Number of thresholds in the array
+//   debounce - Pointer to DebounceManager for current threshold values
+static void AddThresholdMenuItems(HMENU hMenu, MouseButton button, const int *thresholds, int threshold_count, const DebounceManager *debounce)
+{
+	for (int i = 0; i < threshold_count; i++)
+	{
+		UINT threshold_id = IDM_THRESHOLD_BASE + i;
+		wchar_t threshold_text[THRESHOLD_TEXT_BUFFER_SIZE];
+		StringCchPrintf(threshold_text, THRESHOLD_TEXT_BUFFER_SIZE, L"%dms", thresholds[i]);
+
+		UINT flags = MF_BYPOSITION | MF_STRING;
+		if (debounce->buttons[button].thresholdMs == thresholds[i])
+			flags |= MF_CHECKED;
+		InsertMenu(hMenu, -1, flags, threshold_id + button * MENU_ID_BUTTON_MULTIPLIER, threshold_text);
+	}
+}
+
+// Add custom threshold option to a submenu
+// Parameters:
+//   hMenu - Handle to the submenu to add item to
+//   button - The mouse button this submenu is for
+//   thresholds - Array of predefined threshold values in milliseconds
+//   threshold_count - Number of thresholds in the array
+//   debounce - Pointer to DebounceManager for current threshold values
+static void AddCustomThresholdOption(HMENU hMenu, MouseButton button, const int *thresholds, int threshold_count, const DebounceManager *debounce)
+{
+	UINT flags = MF_BYPOSITION | MF_STRING;
+	bool is_custom = true;
+	for (int i = 0; i < threshold_count; i++)
+	{
+		if (debounce->buttons[button].thresholdMs == thresholds[i])
+		{
+			is_custom = false;
+			break;
+		}
+	}
+	if (is_custom)
+		flags |= MF_CHECKED;
+	InsertMenu(hMenu, -1, flags, IDM_THRESHOLD_CUSTOM + button * MENU_ID_BUTTON_MULTIPLIER, L"Custom...");
+}
+
 // Initialize context menu manager
-bool context_menu_init(ContextMenuManager* manager, ContextMenuCallback callback, void* user_data)
+bool context_menu_init(ContextMenuManager *manager, ContextMenuCallback callback, void *user_data)
 {
 	if (!manager)
 		return false;
@@ -16,7 +84,7 @@ bool context_menu_init(ContextMenuManager* manager, ContextMenuCallback callback
 }
 
 // Create and populate menu items
-bool context_menu_create(ContextMenuManager* manager, const DebounceManager* debounce)
+bool context_menu_create(ContextMenuManager *manager, DebounceManager *debounce)
 {
 	if (!manager || !debounce)
 		return false;
@@ -28,12 +96,12 @@ bool context_menu_create(ContextMenuManager* manager, const DebounceManager* deb
 	if (!manager->menu)
 		return false;
 
-	wchar_t buffer[128];
+	wchar_t buffer[STATISTICS_BUFFER_SIZE];
 	uint32_t total_blocks = debounce_get_total_blocks(debounce);
 
 	// Add general statistics
 	bool is_enabled = debounce_is_any_monitored(debounce);
-	StringCchPrintf(buffer, 128, L"Total Blocked: %I32u events", total_blocks);
+	StringCchPrintf(buffer, STATISTICS_BUFFER_SIZE, L"Total Blocked: %I32u events", total_blocks);
 	InsertMenu(manager->menu, -1, MF_BYPOSITION | MF_STRING | MF_GRAYED, 0, buffer);
 
 	InsertMenu(manager->menu, -1, MF_BYPOSITION | MF_SEPARATOR, 0, NULL);
@@ -46,124 +114,44 @@ bool context_menu_create(ContextMenuManager* manager, const DebounceManager* deb
 	HMENU hX2Menu = CreatePopupMenu();
 	HMENU hWheelMenu = CreatePopupMenu();
 
-	// Button thresholds (3 presets matching global Presets + custom)
-	const int button_thresholds[] = {40, 60, 80};
-	const int wheel_thresholds[] = {20, 30, 40};
-	const int button_threshold_count = sizeof(button_thresholds) / sizeof(button_thresholds[0]);
-	const int wheel_threshold_count = sizeof(wheel_thresholds) / sizeof(wheel_thresholds[0]);
-
-	// Add threshold items for buttons
-	for (int i = 0; i < button_threshold_count; i++)
+	// Check if all submenus were created successfully
+	if (!hLeftMenu || !hRightMenu || !hMiddleMenu || !hX1Menu || !hX2Menu || !hWheelMenu)
 	{
-		UINT threshold_id = IDM_THRESHOLD_BASE + i;
-		wchar_t threshold_text[32];
-		StringCchPrintf(threshold_text, 32, L"%dms", button_thresholds[i]);
-
-		// Left button submenu
-		UINT left_threshold_flags = MF_BYPOSITION | MF_STRING;
-		if (debounce->buttons[MOUSE_BUTTON_LEFT].thresholdMs == button_thresholds[i])
-			left_threshold_flags |= MF_CHECKED;
-		InsertMenu(hLeftMenu, -1, left_threshold_flags, threshold_id + MOUSE_BUTTON_LEFT * 10, threshold_text);
-
-		// Right button submenu
-		UINT right_threshold_flags = MF_BYPOSITION | MF_STRING;
-		if (debounce->buttons[MOUSE_BUTTON_RIGHT].thresholdMs == button_thresholds[i])
-			right_threshold_flags |= MF_CHECKED;
-		InsertMenu(hRightMenu, -1, right_threshold_flags, threshold_id + MOUSE_BUTTON_RIGHT * 10, threshold_text);
-
-		// Middle button submenu
-		UINT middle_threshold_flags = MF_BYPOSITION | MF_STRING;
-		if (debounce->buttons[MOUSE_BUTTON_MIDDLE].thresholdMs == button_thresholds[i])
-			middle_threshold_flags |= MF_CHECKED;
-		InsertMenu(hMiddleMenu, -1, middle_threshold_flags, threshold_id + MOUSE_BUTTON_MIDDLE * 10, threshold_text);
-
-		// X1 button submenu
-		UINT x1_threshold_flags = MF_BYPOSITION | MF_STRING;
-		if (debounce->buttons[MOUSE_BUTTON_X1].thresholdMs == button_thresholds[i])
-			x1_threshold_flags |= MF_CHECKED;
-		InsertMenu(hX1Menu, -1, x1_threshold_flags, threshold_id + MOUSE_BUTTON_X1 * 10, threshold_text);
-
-		// X2 button submenu
-		UINT x2_threshold_flags = MF_BYPOSITION | MF_STRING;
-		if (debounce->buttons[MOUSE_BUTTON_X2].thresholdMs == button_thresholds[i])
-			x2_threshold_flags |= MF_CHECKED;
-		InsertMenu(hX2Menu, -1, x2_threshold_flags, threshold_id + MOUSE_BUTTON_X2 * 10, threshold_text);
+		// Cleanup any successfully created menus
+		if (hLeftMenu)
+			DestroyMenu(hLeftMenu);
+		if (hRightMenu)
+			DestroyMenu(hRightMenu);
+		if (hMiddleMenu)
+			DestroyMenu(hMiddleMenu);
+		if (hX1Menu)
+			DestroyMenu(hX1Menu);
+		if (hX2Menu)
+			DestroyMenu(hX2Menu);
+		if (hWheelMenu)
+			DestroyMenu(hWheelMenu);
+		return false;
 	}
+
+	// Add threshold items for each button
+	AddThresholdMenuItems(hLeftMenu, MOUSE_BUTTON_LEFT, BUTTON_THRESHOLDS, BUTTON_THRESHOLD_COUNT, debounce);
+	AddThresholdMenuItems(hRightMenu, MOUSE_BUTTON_RIGHT, BUTTON_THRESHOLDS, BUTTON_THRESHOLD_COUNT, debounce);
+	AddThresholdMenuItems(hMiddleMenu, MOUSE_BUTTON_MIDDLE, BUTTON_THRESHOLDS, BUTTON_THRESHOLD_COUNT, debounce);
+	AddThresholdMenuItems(hX1Menu, MOUSE_BUTTON_X1, BUTTON_THRESHOLDS, BUTTON_THRESHOLD_COUNT, debounce);
+	AddThresholdMenuItems(hX2Menu, MOUSE_BUTTON_X2, BUTTON_THRESHOLDS, BUTTON_THRESHOLD_COUNT, debounce);
 
 	// Add threshold items for wheel
-	for (int i = 0; i < wheel_threshold_count; i++)
-	{
-		UINT threshold_id = IDM_THRESHOLD_BASE + i;
-		wchar_t threshold_text[32];
-		StringCchPrintf(threshold_text, 32, L"%dms", wheel_thresholds[i]);
-
-		UINT wheel_threshold_flags = MF_BYPOSITION | MF_STRING;
-		if (debounce->buttons[MOUSE_BUTTON_WHEEL].thresholdMs == wheel_thresholds[i])
-			wheel_threshold_flags |= MF_CHECKED;
-		InsertMenu(hWheelMenu, -1, wheel_threshold_flags, threshold_id + MOUSE_BUTTON_WHEEL * 10, threshold_text);
-	}
+	AddThresholdMenuItems(hWheelMenu, MOUSE_BUTTON_WHEEL, WHEEL_THRESHOLDS, WHEEL_THRESHOLD_COUNT, debounce);
 
 	// Add custom threshold option for buttons
-	UINT left_custom_flags = MF_BYPOSITION | MF_STRING;
-	bool left_is_custom = true;
-	for (int i = 0; i < button_threshold_count; i++)
-	{
-		if (debounce->buttons[MOUSE_BUTTON_LEFT].thresholdMs == button_thresholds[i])
-			left_is_custom = false;
-	}
-	if (left_is_custom) left_custom_flags |= MF_CHECKED;
-	InsertMenu(hLeftMenu, -1, left_custom_flags, IDM_THRESHOLD_CUSTOM + MOUSE_BUTTON_LEFT * 10, L"Custom...");
-
-	UINT right_custom_flags = MF_BYPOSITION | MF_STRING;
-	bool right_is_custom = true;
-	for (int i = 0; i < button_threshold_count; i++)
-	{
-		if (debounce->buttons[MOUSE_BUTTON_RIGHT].thresholdMs == button_thresholds[i])
-			right_is_custom = false;
-	}
-	if (right_is_custom) right_custom_flags |= MF_CHECKED;
-	InsertMenu(hRightMenu, -1, right_custom_flags, IDM_THRESHOLD_CUSTOM + MOUSE_BUTTON_RIGHT * 10, L"Custom...");
-
-	UINT middle_custom_flags = MF_BYPOSITION | MF_STRING;
-	bool middle_is_custom = true;
-	for (int i = 0; i < button_threshold_count; i++)
-	{
-		if (debounce->buttons[MOUSE_BUTTON_MIDDLE].thresholdMs == button_thresholds[i])
-			middle_is_custom = false;
-	}
-	if (middle_is_custom) middle_custom_flags |= MF_CHECKED;
-	InsertMenu(hMiddleMenu, -1, middle_custom_flags, IDM_THRESHOLD_CUSTOM + MOUSE_BUTTON_MIDDLE * 10, L"Custom...");
-
-	UINT x1_custom_flags = MF_BYPOSITION | MF_STRING;
-	bool x1_is_custom = true;
-	for (int i = 0; i < button_threshold_count; i++)
-	{
-		if (debounce->buttons[MOUSE_BUTTON_X1].thresholdMs == button_thresholds[i])
-			x1_is_custom = false;
-	}
-	if (x1_is_custom) x1_custom_flags |= MF_CHECKED;
-	InsertMenu(hX1Menu, -1, x1_custom_flags, IDM_THRESHOLD_CUSTOM + MOUSE_BUTTON_X1 * 10, L"Custom...");
-
-	UINT x2_custom_flags = MF_BYPOSITION | MF_STRING;
-	bool x2_is_custom = true;
-	for (int i = 0; i < button_threshold_count; i++)
-	{
-		if (debounce->buttons[MOUSE_BUTTON_X2].thresholdMs == button_thresholds[i])
-			x2_is_custom = false;
-	}
-	if (x2_is_custom) x2_custom_flags |= MF_CHECKED;
-	InsertMenu(hX2Menu, -1, x2_custom_flags, IDM_THRESHOLD_CUSTOM + MOUSE_BUTTON_X2 * 10, L"Custom...");
+	AddCustomThresholdOption(hLeftMenu, MOUSE_BUTTON_LEFT, BUTTON_THRESHOLDS, BUTTON_THRESHOLD_COUNT, debounce);
+	AddCustomThresholdOption(hRightMenu, MOUSE_BUTTON_RIGHT, BUTTON_THRESHOLDS, BUTTON_THRESHOLD_COUNT, debounce);
+	AddCustomThresholdOption(hMiddleMenu, MOUSE_BUTTON_MIDDLE, BUTTON_THRESHOLDS, BUTTON_THRESHOLD_COUNT, debounce);
+	AddCustomThresholdOption(hX1Menu, MOUSE_BUTTON_X1, BUTTON_THRESHOLDS, BUTTON_THRESHOLD_COUNT, debounce);
+	AddCustomThresholdOption(hX2Menu, MOUSE_BUTTON_X2, BUTTON_THRESHOLDS, BUTTON_THRESHOLD_COUNT, debounce);
 
 	// Add custom threshold option for wheel
-	UINT wheel_custom_flags = MF_BYPOSITION | MF_STRING;
-	bool wheel_is_custom = true;
-	for (int i = 0; i < wheel_threshold_count; i++)
-	{
-		if (debounce->buttons[MOUSE_BUTTON_WHEEL].thresholdMs == wheel_thresholds[i])
-			wheel_is_custom = false;
-	}
-	if (wheel_is_custom) wheel_custom_flags |= MF_CHECKED;
-	InsertMenu(hWheelMenu, -1, wheel_custom_flags, IDM_THRESHOLD_CUSTOM + MOUSE_BUTTON_WHEEL * 10, L"Custom...");
+	AddCustomThresholdOption(hWheelMenu, MOUSE_BUTTON_WHEEL, WHEEL_THRESHOLDS, WHEEL_THRESHOLD_COUNT, debounce);
 
 	// Add toggle and separator to each submenu
 	InsertMenu(hLeftMenu, 0, MF_BYPOSITION | MF_SEPARATOR, 0, NULL);
@@ -234,7 +222,7 @@ bool context_menu_create(ContextMenuManager* manager, const DebounceManager* deb
 
 	// Add control section
 	InsertMenu(manager->menu, -1, MF_BYPOSITION | MF_STRING, IDM_TOGGLE_ENABLE,
-	           is_enabled ? L"Disable All" : L"Enable All");
+			   is_enabled ? L"Disable All" : L"Enable All");
 	InsertMenu(manager->menu, -1, MF_BYPOSITION | MF_STRING, IDM_RESET_STATS, L"Reset Statistics");
 
 	InsertMenu(manager->menu, -1, MF_BYPOSITION | MF_SEPARATOR, 0, NULL);
@@ -242,9 +230,21 @@ bool context_menu_create(ContextMenuManager* manager, const DebounceManager* deb
 	// Add presets submenu
 	HMENU hPresets = CreatePopupMenu();
 	InsertMenu(hPresets, -1, MF_BYPOSITION | MF_STRING, IDM_PRESET_DEFAULT, L"Default (60ms)");
-	InsertMenu(hPresets, -1, MF_BYPOSITION | MF_STRING, IDM_PRESET_OFFICE, L"Office Mode (80ms)");
+	InsertMenu(hPresets, -1, MF_BYPOSITION | MF_STRING, IDM_PRESET_OFFICE, L"Office Mode (70ms)");
 	InsertMenu(hPresets, -1, MF_BYPOSITION | MF_STRING, IDM_PRESET_STRICT, L"Strict Mode (40ms)");
 	InsertMenu(manager->menu, -1, MF_BYPOSITION | MF_POPUP, (UINT_PTR)hPresets, L"Presets");
+
+	InsertMenu(manager->menu, -1, MF_BYPOSITION | MF_SEPARATOR, 0, NULL);
+
+	// Add About submenu
+	HMENU hAbout = CreatePopupMenu();
+	InsertMenu(hAbout, -1, MF_BYPOSITION | MF_STRING, IDM_ABOUT_GITHUB, L"GitHub Repository");
+
+	wchar_t version_text[64];
+	StringCchPrintf(version_text, 64, L"v%d.%d.%d", APP_VERSION_MAJOR, APP_VERSION_MINOR, APP_VERSION_PATCH);
+	InsertMenu(hAbout, -1, MF_BYPOSITION | MF_STRING | MF_GRAYED, IDM_ABOUT_VERSION, version_text);
+
+	InsertMenu(manager->menu, -1, MF_BYPOSITION | MF_POPUP, (UINT_PTR)hAbout, L"About");
 
 	InsertMenu(manager->menu, -1, MF_BYPOSITION | MF_SEPARATOR, 0, NULL);
 
@@ -255,7 +255,7 @@ bool context_menu_create(ContextMenuManager* manager, const DebounceManager* deb
 }
 
 // Show context menu at specified position
-bool context_menu_show(ContextMenuManager* manager, HWND hwnd, int x, int y, const DebounceManager* debounce)
+bool context_menu_show(ContextMenuManager *manager, HWND hwnd, int x, int y, DebounceManager *debounce)
 {
 	if (!manager || !hwnd)
 		return false;
@@ -270,7 +270,7 @@ bool context_menu_show(ContextMenuManager* manager, HWND hwnd, int x, int y, con
 }
 
 // Update menu with current statistics
-bool context_menu_update(ContextMenuManager* manager, const DebounceManager* debounce)
+bool context_menu_update(ContextMenuManager *manager, DebounceManager *debounce)
 {
 	if (!manager || !debounce)
 		return false;
@@ -280,7 +280,7 @@ bool context_menu_update(ContextMenuManager* manager, const DebounceManager* deb
 }
 
 // Destroy context menu
-void context_menu_destroy(ContextMenuManager* manager)
+void context_menu_destroy(ContextMenuManager *manager)
 {
 	if (!manager)
 		return;

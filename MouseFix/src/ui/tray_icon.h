@@ -15,25 +15,25 @@ typedef struct
 } TrayIconManager;
 
 // Initialize tray icon manager
-bool tray_icon_init(TrayIconManager* manager, HWND hwnd, HINSTANCE hInstance, int icon_id);
+bool tray_icon_init(TrayIconManager *manager, HWND hwnd, HINSTANCE hInstance, int icon_id);
 
 // Add icon to system tray
-bool tray_icon_add(TrayIconManager* manager);
+bool tray_icon_add(TrayIconManager *manager);
 
 // Remove icon from system tray
-void tray_icon_remove(TrayIconManager* manager);
+void tray_icon_remove(TrayIconManager *manager);
 
 // Restore icon after explorer crash
-bool tray_icon_restore(TrayIconManager* manager);
+bool tray_icon_restore(TrayIconManager *manager);
 
 // Update tooltip text
-bool tray_icon_set_tooltip(TrayIconManager* manager, const wchar_t* tooltip);
+bool tray_icon_set_tooltip(TrayIconManager *manager, const wchar_t *tooltip);
 
 // Show balloon notification
-bool tray_icon_show_balloon(TrayIconManager* manager, const wchar_t* title, const wchar_t* text, DWORD info_flags, UINT timeout);
+bool tray_icon_show_balloon(TrayIconManager *manager, const wchar_t *title, const wchar_t *text, DWORD info_flags, UINT timeout);
 
 // Handle taskbar recreated message
-void tray_icon_handle_taskbar_created(TrayIconManager* manager);
+void tray_icon_handle_taskbar_created(TrayIconManager *manager);
 
 // Update icon with overlay indicator
-bool tray_icon_update_with_indicator(TrayIconManager* manager, bool is_enabled, HINSTANCE hInstance);
+bool tray_icon_update_with_indicator(TrayIconManager *manager, bool is_enabled, HINSTANCE hInstance);

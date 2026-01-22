@@ -1,8 +1,9 @@
 #define _CRT_SECURE_NO_WARNINGS
 #include "error_handler.h"
 #include <string.h>
+#include <windows.h>
 
-static const char* ERROR_MESSAGES[] = {
+static const char *ERROR_MESSAGES[] = {
 	"Success",
 	"Invalid configuration",
 	"Failed to install mouse hook",
@@ -13,11 +14,10 @@ static const char* ERROR_MESSAGES[] = {
 	"Permission denied",
 	"Invalid argument",
 	"File not found",
-	"Unknown error"
-};
+	"Unknown error"};
 
 // Initialize error handler
-bool error_handler_init(ErrorHandler* handler)
+bool error_handler_init(ErrorHandler *handler)
 {
 	if (!handler)
 		return false;
@@ -29,7 +29,7 @@ bool error_handler_init(ErrorHandler* handler)
 }
 
 // Cleanup error handler
-void error_handler_cleanup(ErrorHandler* handler)
+void error_handler_cleanup(ErrorHandler *handler)
 {
 	if (!handler)
 		return;
@@ -39,43 +39,56 @@ void error_handler_cleanup(ErrorHandler* handler)
 }
 
 // Report an error
-void error_handler_report(ErrorHandler* handler, ErrorCode code, const char* message, const char* file, int line)
+void error_handler_report(ErrorHandler *handler, ErrorCode code, const char *message, const char *file, int line)
 {
 	if (!handler || !handler->initialized)
 		return;
 
-	// Add error to the list
-	if (handler->error_count < 32)
-	{
-		Error* error = &handler->errors[handler->error_count];
-		error->code = code;
+	// Atomically check and increment error count
+	LONG current_count = InterlockedCompareExchange(&handler->error_count, 0, 0);
 
-		if (message)
+	// Add error to the list (thread-safe)
+	if (current_count < 32)
+	{
+		// Use InterlockedIncrement to atomically increment error_count
+		LONG new_count = InterlockedIncrement(&handler->error_count);
+
+		// Double-check after increment (in case another thread also incremented)
+		if (new_count <= 32)
 		{
-			strncpy(error->message, message, sizeof(error->message) - 1);
-			error->message[sizeof(error->message) - 1] = '\0';
+			Error *error = &handler->errors[new_count - 1];
+			error->code = code;
+
+			if (message)
+			{
+				strncpy(error->message, message, sizeof(error->message) - 1);
+				error->message[sizeof(error->message) - 1] = '\0';
+			}
+			else
+			{
+				strncpy(error->message, ERROR_MESSAGES[code], sizeof(error->message) - 1);
+				error->message[sizeof(error->message) - 1] = '\0';
+			}
+
+			error->file = file;
+			error->line = line;
+
+			// Call callback if set
+			if (handler->callback)
+			{
+				handler->callback(error, handler->user_data);
+			}
 		}
 		else
 		{
-			strncpy(error->message, ERROR_MESSAGES[code], sizeof(error->message) - 1);
-			error->message[sizeof(error->message) - 1] = '\0';
+			// Error buffer full, decrement back
+			InterlockedDecrement(&handler->error_count);
 		}
-
-		error->file = file;
-		error->line = line;
-
-		handler->error_count++;
-	}
-
-	// Call callback if set
-	if (handler->callback)
-	{
-		handler->callback(&handler->errors[handler->error_count - 1], handler->user_data);
 	}
 }
 
 // Get last error
-const Error* error_handler_get_last_error(const ErrorHandler* handler)
+const Error *error_handler_get_last_error(const ErrorHandler *handler)
 {
 	if (!handler || !handler->initialized || handler->error_count == 0)
 		return NULL;
@@ -84,7 +97,7 @@ const Error* error_handler_get_last_error(const ErrorHandler* handler)
 }
 
 // Clear all errors
-void error_handler_clear(ErrorHandler* handler)
+void error_handler_clear(ErrorHandler *handler)
 {
 	if (!handler)
 		return;
@@ -94,7 +107,7 @@ void error_handler_clear(ErrorHandler* handler)
 }
 
 // Set error callback
-void error_handler_set_callback(ErrorHandler* handler, ErrorCallback callback, void* user_data)
+void error_handler_set_callback(ErrorHandler *handler, ErrorCallback callback, void *user_data)
 {
 	if (!handler)
 		return;
@@ -104,7 +117,7 @@ void error_handler_set_callback(ErrorHandler* handler, ErrorCallback callback, v
 }
 
 // Get error message from error code
-const char* error_handler_get_message(ErrorCode code)
+const char *error_handler_get_message(ErrorCode code)
 {
 	if (code >= 0 && code < ERR_UNKNOWN)
 	{

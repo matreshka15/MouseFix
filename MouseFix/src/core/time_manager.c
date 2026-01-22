@@ -2,7 +2,7 @@
 #include <windows.h>
 
 // Initialize time manager
-bool time_manager_init(TimeManager* manager, bool use_qpc)
+bool time_manager_init(TimeManager *manager, bool use_qpc)
 {
 	if (!manager)
 		return false;
@@ -12,7 +12,7 @@ bool time_manager_init(TimeManager* manager, bool use_qpc)
 
 	if (use_qpc)
 	{
-		if (!QueryPerformanceFrequency((LARGE_INTEGER*)&manager->counts_per_second))
+		if (!QueryPerformanceFrequency((LARGE_INTEGER *)&manager->counts_per_second))
 		{
 			manager->use_qpc = false;
 		}
@@ -23,7 +23,7 @@ bool time_manager_init(TimeManager* manager, bool use_qpc)
 }
 
 // Get current time
-uint64_t time_manager_get_current_time(const TimeManager* manager)
+uint64_t time_manager_get_current_time(const TimeManager *manager)
 {
 	if (!manager || !manager->initialized)
 		return 0;
@@ -41,7 +41,7 @@ uint64_t time_manager_get_current_time(const TimeManager* manager)
 }
 
 // Convert milliseconds to time units
-uint64_t time_manager_ms_to_time(const TimeManager* manager, uint32_t ms)
+uint64_t time_manager_ms_to_time(const TimeManager *manager, uint32_t ms)
 {
 	if (!manager || !manager->initialized)
 		return 0;
@@ -64,7 +64,7 @@ bool time_manager_is_qpc_available(void)
 }
 
 // Get time resolution in nanoseconds
-double time_manager_get_resolution_ns(const TimeManager* manager)
+double time_manager_get_resolution_ns(const TimeManager *manager)
 {
 	if (!manager || !manager->initialized)
 		return 0.0;
@@ -75,6 +75,6 @@ double time_manager_get_resolution_ns(const TimeManager* manager)
 	}
 	else
 	{
-		return 15.6e6;  // ~15.6ms for GetTickCount
+		return 15.6e6; // ~15.6ms for GetTickCount
 	}
 }

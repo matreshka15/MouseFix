@@ -19,27 +19,27 @@
 #define IDM_TOGGLE_WHEEL (WM_USER + 35)
 
 // Context menu callback
-typedef void (*ContextMenuCallback)(int menu_id, void* user_data);
+typedef void (*ContextMenuCallback)(int menu_id, void *user_data);
 
 // Context menu manager
 typedef struct
 {
 	HMENU menu;
 	ContextMenuCallback callback;
-	void* user_data;
+	void *user_data;
 } ContextMenuManager;
 
 // Initialize context menu manager
-bool context_menu_init(ContextMenuManager* manager, ContextMenuCallback callback, void* user_data);
+bool context_menu_init(ContextMenuManager *manager, ContextMenuCallback callback, void *user_data);
 
 // Show context menu at specified position
-bool context_menu_show(ContextMenuManager* manager, HWND hwnd, int x, int y, const DebounceManager* debounce);
+bool context_menu_show(ContextMenuManager *manager, HWND hwnd, int x, int y, DebounceManager *debounce);
 
 // Create and populate menu items
-bool context_menu_create(ContextMenuManager* manager, const DebounceManager* debounce);
+bool context_menu_create(ContextMenuManager *manager, DebounceManager *debounce);
 
 // Destroy context menu
-void context_menu_destroy(ContextMenuManager* manager);
+void context_menu_destroy(ContextMenuManager *manager);
 
 // Update menu with current statistics
-bool context_menu_update(ContextMenuManager* manager, const DebounceManager* debounce);
+bool context_menu_update(ContextMenuManager *manager, DebounceManager *debounce);
