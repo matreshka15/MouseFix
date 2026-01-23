@@ -238,7 +238,7 @@ bool context_menu_create(ContextMenuManager *manager, DebounceManager *debounce)
 
 	// Add About submenu
 	HMENU hAbout = CreatePopupMenu();
-	InsertMenu(hAbout, -1, MF_BYPOSITION | MF_STRING, IDM_ABOUT_GITHUB, L"GitHub Repository");
+	InsertMenu(hAbout, -1, MF_BYPOSITION | MF_STRING, IDM_ABOUT_GITHUB, L"Website");
 
 	wchar_t version_text[64];
 	StringCchPrintf(version_text, 64, L"v%d.%d.%d", APP_VERSION_MAJOR, APP_VERSION_MINOR, APP_VERSION_PATCH);

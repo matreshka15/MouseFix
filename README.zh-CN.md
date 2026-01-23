@@ -2,7 +2,7 @@
 
 <div align="center">
 
-![Version](https://img.shields.io/badge/version-1.0.0-blue.svg)
+![Version](https://img.shields.io/badge/version-1.0.2-blue.svg)
 ![Platform](https://img.shields.io/badge/platform-Windows-lightgrey.svg)
 ![License](https://img.shields.io/badge/license-MIT-green.svg)
 ![Size](https://img.shields.io/badge/size-120KB-orange.svg)
@@ -89,7 +89,7 @@
 ## 🚀 快速开始
 
 1. **下载**并解压 MouseFix（推荐 64位版本）
-2. **运行** `MouseFix.exe` - 程序出现在系统托盘中
+2. **运行** `MouseFix-x64.exe`（或 `MouseFix-x86.exe`）- 程序出现在系统托盘中
 3. **右键点击**托盘图标进行配置：
    - 切换按键（左键、右键、中键、X1、X2、滚轮）
    - 选择预设（默认/办公/严格）或自定义阈值

@@ -72,22 +72,22 @@
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <OutDir>$(ProjectDir)bin\x86\Debug\</OutDir>
     <IntDir>$(ProjectDir)bin\x86\Debug\obj\</IntDir>
-    <TargetName>MouseFix</TargetName>
+    <TargetName>MouseFix-x86</TargetName>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <OutDir>$(ProjectDir)bin\x86\Release\</OutDir>
     <IntDir>$(ProjectDir)bin\x86\Release\obj\</IntDir>
-    <TargetName>MouseFix</TargetName>
+    <TargetName>MouseFix-x86</TargetName>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <OutDir>$(ProjectDir)bin\x64\Debug\</OutDir>
     <IntDir>$(ProjectDir)bin\x64\Debug\obj\</IntDir>
-    <TargetName>MouseFix</TargetName>
+    <TargetName>MouseFix-x64</TargetName>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <OutDir>$(ProjectDir)bin\x64\Release\</OutDir>
     <IntDir>$(ProjectDir)bin\x64\Release\obj\</IntDir>
-    <TargetName>MouseFix</TargetName>
+    <TargetName>MouseFix-x64</TargetName>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>

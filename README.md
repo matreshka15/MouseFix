@@ -2,7 +2,7 @@
 
 <div align="center">
 
-![Version](https://img.shields.io/badge/version-1.0.0-blue.svg)
+![Version](https://img.shields.io/badge/version-1.0.2-blue.svg)
 ![Platform](https://img.shields.io/badge/platform-Windows-lightgrey.svg)
 ![License](https://img.shields.io/badge/license-MIT-green.svg)
 ![Size](https://img.shields.io/badge/size-120KB-orange.svg)
@@ -89,7 +89,7 @@ Toggle each mouse button independently:
 ## 🚀 Quick Start
 
 1. **Download** and extract MouseFix (64-bit recommended)
-2. **Run** `MouseFix.exe` - app appears in system tray
+2. **Run** `MouseFix-x64.exe` (or `MouseFix-x86.exe`) - app appears in system tray
 3. **Right-click** tray icon to configure:
    - Toggle buttons (Left, Right, Middle, X1, X2, Wheel)
    - Select preset (Default/Office/Strict) or custom threshold
