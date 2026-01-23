@@ -92,7 +92,7 @@ bool tray_icon_set_tooltip(TrayIconManager *manager, const wchar_t *tooltip)
 	if (!manager || !tooltip)
 		return false;
 
-	StringCchCopy(manager->notify_data.szTip, sizeof(manager->notify_data.szTip), tooltip);
+	StringCchCopy(manager->notify_data.szTip, ARRAYSIZE(manager->notify_data.szTip), tooltip);
 
 	if (manager->added)
 	{

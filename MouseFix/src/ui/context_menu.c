@@ -10,7 +10,7 @@
 #define MENU_ID_BUTTON_MULTIPLIER 100
 
 // Button thresholds (3 presets matching global Presets + custom)
-static const int BUTTON_THRESHOLDS[] = {40, 60, 70};
+static const int BUTTON_THRESHOLDS[] = {40, 50, 60};
 static const int WHEEL_THRESHOLDS[] = {20, 30, 35};
 static const int BUTTON_THRESHOLD_COUNT = 3;
 static const int WHEEL_THRESHOLD_COUNT = 3;
@@ -229,8 +229,8 @@ bool context_menu_create(ContextMenuManager *manager, DebounceManager *debounce)
 
 	// Add presets submenu
 	HMENU hPresets = CreatePopupMenu();
-	InsertMenu(hPresets, -1, MF_BYPOSITION | MF_STRING, IDM_PRESET_DEFAULT, L"Default (60ms)");
-	InsertMenu(hPresets, -1, MF_BYPOSITION | MF_STRING, IDM_PRESET_OFFICE, L"Office Mode (70ms)");
+	InsertMenu(hPresets, -1, MF_BYPOSITION | MF_STRING, IDM_PRESET_DEFAULT, L"Default (50ms)");
+	InsertMenu(hPresets, -1, MF_BYPOSITION | MF_STRING, IDM_PRESET_OFFICE, L"Office Mode (60ms)");
 	InsertMenu(hPresets, -1, MF_BYPOSITION | MF_STRING, IDM_PRESET_STRICT, L"Strict Mode (40ms)");
 	InsertMenu(manager->menu, -1, MF_BYPOSITION | MF_POPUP, (UINT_PTR)hPresets, L"Presets");
 

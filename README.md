@@ -58,8 +58,8 @@ Most likely "switch bounce" - your mouse's micro-switch contacts have worn out, 
 
 | Preset | Button Threshold | Wheel Threshold | Best For |
 |--------|------------------|-----------------|----------|
-| 🎯 **Default** | 60ms | 30ms | Daily use, balanced |
-| 💼 **Office** | 80ms | 40ms | Document work, stricter filtering |
+| 🎯 **Default** | 50ms | 30ms | Daily use, balanced |
+| 💼 **Office** | 60ms | 40ms | Document work, stricter filtering |
 | 🎮 **Strict** | 40ms | 20ms | Gaming, precision tasks |
 
 ### 🔧 Individual Button Control
@@ -70,7 +70,7 @@ Toggle each mouse button independently:
 - ✓ Middle Button
 - ✓ X1 Button (Back)
 - ✓ X2 Button (Forward)
-- ✓ Wheel Scroll
+- ✓ Wheel Scroll (Custom 1-200ms)
 
 ---
 
@@ -95,7 +95,7 @@ Toggle each mouse button independently:
    - Select preset (Default/Office/Strict) or custom threshold
 4. **Exit** via right-click menu when done
 
-**Note:** Only one instance can run. Settings reset on restart.
+**Note:** Only one instance can run. Settings are automatically saved to the Windows Registry.
 
 ---
 
@@ -118,7 +118,7 @@ To remove auto-startup, run the script again and select "Remove Startup".
 ## ❓ Common Issues
 
 **Q: Still having false clicks?**
-A: Switch to **Office mode** (80ms) or set custom threshold to 100-150ms.
+A: Switch to **Office mode** (60ms) or set custom threshold to 80-120ms.
 
 **Q: Wheel scrolling feels delayed?**
 A: Disable wheel debounce (uncheck Wheel) or lower wheel threshold to 20ms.
@@ -127,7 +127,7 @@ A: Disable wheel debounce (uncheck Wheel) or lower wheel threshold to 20ms.
 A: Check if MouseFix icon is already in system tray. If not, restart your computer.
 
 **Q: Settings reset after restart?**
-A: Current version doesn't save settings. Reconfigure each time or add to startup.
+A: Settings are now persistent via the Windows Registry (`HKCU\Software\MouseFix`). Your configuration will be restored automatically.
 
 **Q: Antivirus alerts?**
 A: Add to antivirus whitelist. App uses system-level mouse hooks but doesn't collect data.

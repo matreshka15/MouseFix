@@ -57,7 +57,8 @@ static AppState g_app = {0};
 #define INPUT_BOX_INPUT_BUFFER_SIZE 32
 #define INPUT_BOX_ERROR_BUFFER_SIZE 1024
 #define THRESHOLD_MIN_VALUE 1
-#define THRESHOLD_MAX_VALUE 500
+#define THRESHOLD_MAX_VALUE 200
+#define REG_SETTINGS_KEY L"Software\\MouseFix"
 
 // Preset configuration structure
 typedef struct
@@ -71,8 +72,8 @@ typedef struct
 } PresetConfig;
 
 // Preset definitions
-static const PresetConfig PRESET_DEFAULT = {60, 60, 60, 60, 60, 30};
-static const PresetConfig PRESET_OFFICE = {70, 70, 70, 70, 70, 35};
+static const PresetConfig PRESET_DEFAULT = {50, 50, 50, 50, 50, 30};
+static const PresetConfig PRESET_OFFICE = {60, 60, 60, 60, 60, 35};
 static const PresetConfig PRESET_STRICT = {40, 40, 40, 40, 40, 20};
 
 // Function declarations
@@ -89,6 +90,8 @@ static void ToggleWheel(void);
 static void ApplyPreset(const PresetConfig *preset);
 static void SetButtonThreshold(MouseButton button, int threshold_ms);
 static bool InputBox(LPCWSTR prompt, LPWSTR buffer, int buffer_size);
+static void SaveSettings(void);
+static void LoadSettings(void);
 
 // Mouse hook callback
 static LRESULT CALLBACK OnMouseHookCallback(const MouseEvent *event, void *user_data)
@@ -161,11 +164,17 @@ static bool InitializeApp(void)
 		return false;
 	}
 
-	// Apply Default Preset (60ms for buttons, 30ms for wheel)
-	ApplyPreset(&PRESET_DEFAULT);
+	// Apply Default Preset (50ms for buttons, 30ms for wheel)
+	// We use a silent version of ApplyPreset for initialization to avoid redundant SaveSettings
+	g_app.debounce.buttons[MOUSE_BUTTON_LEFT].thresholdMs = PRESET_DEFAULT.left;
+	g_app.debounce.buttons[MOUSE_BUTTON_RIGHT].thresholdMs = PRESET_DEFAULT.right;
+	g_app.debounce.buttons[MOUSE_BUTTON_MIDDLE].thresholdMs = PRESET_DEFAULT.middle;
+	g_app.debounce.buttons[MOUSE_BUTTON_X1].thresholdMs = PRESET_DEFAULT.x1;
+	g_app.debounce.buttons[MOUSE_BUTTON_X2].thresholdMs = PRESET_DEFAULT.x2;
+	g_app.debounce.buttons[MOUSE_BUTTON_WHEEL].thresholdMs = PRESET_DEFAULT.wheel;
 
-	// Enable left button by default
-	debounce_set_monitored(&g_app.debounce, MOUSE_BUTTON_LEFT, true);
+	// Load saved settings from Registry (overwrites defaults if they exist)
+	LoadSettings();
 
 	// Initialize mouse hook
 	if (!mouse_hook_init(&g_app.mouse_hook, OnMouseHookCallback, &g_app))
@@ -250,6 +259,8 @@ static void ToggleEnableAll(void)
 		debounce_set_monitored(&g_app.debounce, i, !is_enabled);
 	}
 
+	SaveSettings();
+
 #ifndef NDEBUG
 	LOG_INFO(&g_app.logger, "All buttons %s", !is_enabled ? "enabled" : "disabled");
 #endif
@@ -264,6 +275,8 @@ static void ToggleButton(MouseButton button)
 	bool current_state = g_app.debounce.buttons[button].isMonitored;
 	debounce_set_monitored(&g_app.debounce, button, !current_state);
 
+	SaveSettings();
+
 #ifndef NDEBUG
 	LOG_INFO(&g_app.logger, "%S button %s",
 			 debounce_get_button_name(button),
@@ -276,6 +289,8 @@ static void ToggleWheel(void)
 {
 	bool current_state = g_app.debounce.buttons[MOUSE_BUTTON_WHEEL].isMonitored;
 	debounce_set_monitored(&g_app.debounce, MOUSE_BUTTON_WHEEL, !current_state);
+
+	SaveSettings();
 
 #ifndef NDEBUG
 	LOG_INFO(&g_app.logger, "Wheel scrolling %s", !current_state ? "enabled" : "disabled");
@@ -296,48 +311,85 @@ static void ApplyPreset(const PresetConfig *preset)
 	debounce_set_threshold(&g_app.debounce, MOUSE_BUTTON_X2, preset->x2, THRESHOLD_MIN_VALUE, THRESHOLD_MAX_VALUE);
 	debounce_set_threshold(&g_app.debounce, MOUSE_BUTTON_WHEEL, preset->wheel, THRESHOLD_MIN_VALUE, THRESHOLD_MAX_VALUE);
 
+	SaveSettings();
+
 #ifndef NDEBUG
 	LOG_INFO(&g_app.logger, "Applied preset: L=%dms, R=%dms, M=%dms, X1=%dms, X2=%dms, W=%dms",
 			 preset->left, preset->right, preset->middle, preset->x1, preset->x2, preset->wheel);
 #endif
 }
 
+// Simple input box dialog state
+typedef struct
+{
+	LPWSTR buffer;
+	int buffer_size;
+	bool ok_pressed;
+} InputBoxState;
+
+// Input box window procedure
+static LRESULT CALLBACK InputBoxProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
+{
+	InputBoxState *state = (InputBoxState *)GetWindowLongPtr(hWnd, GWLP_USERDATA);
+
+	switch (message)
+	{
+	case WM_COMMAND:
+		if (LOWORD(wParam) == IDOK)
+		{
+			HWND hEdit = GetDlgItem(hWnd, 1001);
+			if (hEdit && state)
+			{
+				GetWindowTextW(hEdit, state->buffer, state->buffer_size);
+				state->ok_pressed = true;
+				DestroyWindow(hWnd);
+			}
+			return 0;
+		}
+		if (LOWORD(wParam) == IDCANCEL)
+		{
+			if (state)
+				state->ok_pressed = false;
+			DestroyWindow(hWnd);
+			return 0;
+		}
+		break;
+	case WM_CLOSE:
+		DestroyWindow(hWnd);
+		return 0;
+	}
+	return DefWindowProcW(hWnd, message, wParam, lParam);
+}
+
 // Simple input box dialog
 static bool InputBox(LPCWSTR prompt, LPWSTR buffer, int buffer_size)
 {
 	HINSTANCE hInstance = GetModuleHandle(NULL);
+	InputBoxState state = {buffer, buffer_size, false};
 
-	// Register a simple window class
+	// Register a simple window class if not already registered
 	WNDCLASSW wc = {0};
-	wc.lpfnWndProc = DefWindowProc;
+	wc.lpfnWndProc = InputBoxProc;
 	wc.hInstance = hInstance;
+	wc.hCursor = LoadCursor(NULL, IDC_ARROW);
+	wc.hbrBackground = (HBRUSH)(COLOR_BTNFACE + 1);
 	wc.lpszClassName = INPUT_BOX_CLASS_NAME;
-	if (!RegisterClassW(&wc))
-	{
-		DWORD error = GetLastError();
-		if (error == ERROR_CLASS_ALREADY_EXISTS)
-		{
-			// Class already exists, that's OK
-		}
-		else
-		{
-			return false;
-		}
-	}
+	RegisterClassW(&wc);
 
 	// Create dialog window
 	HWND hWnd = CreateWindowExW(
 		WS_EX_TOPMOST | WS_EX_DLGMODALFRAME,
 		INPUT_BOX_CLASS_NAME, INPUT_BOX_TITLE,
-		WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU | WS_VISIBLE,
+		WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU,
 		CW_USEDEFAULT, CW_USEDEFAULT, INPUT_BOX_WIDTH, INPUT_BOX_HEIGHT,
 		NULL, NULL, hInstance, NULL);
 
 	if (!hWnd)
 	{
-		UnregisterClassW(L"InputBoxClass", hInstance);
 		return false;
 	}
+
+	SetWindowLongPtr(hWnd, GWLP_USERDATA, (LONG_PTR)&state);
 
 	// Center the window
 	RECT rc;
@@ -357,7 +409,7 @@ static bool InputBox(LPCWSTR prompt, LPWSTR buffer, int buffer_size)
 	// Create edit box
 	HWND hEdit = CreateWindowExW(WS_EX_CLIENTEDGE, L"EDIT", L"",
 								 WS_CHILD | WS_VISIBLE | WS_BORDER | ES_NUMBER | ES_AUTOHSCROLL,
-								 20, 50, 280, 25, hWnd, NULL, hInstance, NULL);
+								 20, 50, 280, 25, hWnd, (HMENU)1001, hInstance, NULL);
 
 	// Create OK button
 	HWND hOK = CreateWindowExW(0, L"BUTTON", L"OK",
@@ -369,14 +421,6 @@ static bool InputBox(LPCWSTR prompt, LPWSTR buffer, int buffer_size)
 								   WS_CHILD | WS_VISIBLE,
 								   160, 90, 70, 30, hWnd, (HMENU)IDCANCEL, hInstance, NULL);
 
-	// Check if all controls were created successfully
-	if (!hLabel || !hEdit || !hOK || !hCancel)
-	{
-		DestroyWindow(hWnd);
-		UnregisterClassW(INPUT_BOX_CLASS_NAME, hInstance);
-		return false;
-	}
-
 	// Set fonts
 	HFONT hFont = (HFONT)GetStockObject(DEFAULT_GUI_FONT);
 	SendMessage(hLabel, WM_SETFONT, (WPARAM)hFont, TRUE);
@@ -385,35 +429,73 @@ static bool InputBox(LPCWSTR prompt, LPWSTR buffer, int buffer_size)
 	SendMessage(hCancel, WM_SETFONT, (WPARAM)hFont, TRUE);
 
 	// Limit input length
-	SendMessage(hEdit, EM_SETLIMITTEXT, INPUT_BOX_INPUT_BUFFER_SIZE - 1, 0);
+	SendMessage(hEdit, EM_SETLIMITTEXT, buffer_size - 1, 0);
 	SetFocus(hEdit);
+	ShowWindow(hWnd, SW_SHOW);
 
 	// Message loop
 	MSG msg;
-	BOOL result = FALSE;
-	while (GetMessage(&msg, NULL, 0, 0))
+	while (IsWindow(hWnd) && GetMessage(&msg, NULL, 0, 0))
 	{
-		if (msg.message == WM_COMMAND)
+		if (!IsDialogMessage(hWnd, &msg))
 		{
-			if (LOWORD(msg.wParam) == IDOK)
-			{
-				GetWindowTextW(hEdit, buffer, buffer_size);
-				result = TRUE;
-				break;
-			}
-			if (LOWORD(msg.wParam) == IDCANCEL)
-			{
-				result = FALSE;
-				break;
-			}
+			TranslateMessage(&msg);
+			DispatchMessage(&msg);
 		}
-		TranslateMessage(&msg);
-		DispatchMessage(&msg);
 	}
 
-	DestroyWindow(hWnd);
-	UnregisterClassW(INPUT_BOX_CLASS_NAME, hInstance);
-	return result;
+	return state.ok_pressed;
+}
+
+static void SaveSettings(void)
+{
+	HKEY hKey;
+	if (RegCreateKeyExW(HKEY_CURRENT_USER, REG_SETTINGS_KEY, 0, NULL, REG_OPTION_NON_VOLATILE, KEY_WRITE, NULL, &hKey, NULL) == ERROR_SUCCESS)
+	{
+		for (int i = 0; i < MOUSE_BUTTON_COUNT; i++)
+		{
+			wchar_t valName[64];
+			// Save threshold
+			StringCchPrintfW(valName, 64, L"Btn%d_Threshold", i);
+			DWORD threshold = (DWORD)g_app.debounce.buttons[i].thresholdMs;
+			RegSetValueExW(hKey, valName, 0, REG_DWORD, (BYTE *)&threshold, sizeof(DWORD));
+
+			// Save enabled state
+			StringCchPrintfW(valName, 64, L"Btn%d_Enabled", i);
+			DWORD enabled = g_app.debounce.buttons[i].isMonitored ? 1 : 0;
+			RegSetValueExW(hKey, valName, 0, REG_DWORD, (BYTE *)&enabled, sizeof(DWORD));
+		}
+		RegCloseKey(hKey);
+	}
+}
+
+static void LoadSettings(void)
+{
+	HKEY hKey;
+	if (RegOpenKeyExW(HKEY_CURRENT_USER, REG_SETTINGS_KEY, 0, KEY_READ, &hKey) == ERROR_SUCCESS)
+	{
+		for (int i = 0; i < MOUSE_BUTTON_COUNT; i++)
+		{
+			wchar_t valName[64];
+			DWORD threshold, enabled, size = sizeof(DWORD);
+
+			// Load threshold
+			StringCchPrintfW(valName, 64, L"Btn%d_Threshold", i);
+			if (RegQueryValueExW(hKey, valName, NULL, NULL, (BYTE *)&threshold, &size) == ERROR_SUCCESS)
+			{
+				debounce_set_threshold(&g_app.debounce, i, (int)threshold, THRESHOLD_MIN_VALUE, THRESHOLD_MAX_VALUE);
+			}
+
+			// Load enabled state
+			size = sizeof(DWORD);
+			StringCchPrintfW(valName, 64, L"Btn%d_Enabled", i);
+			if (RegQueryValueExW(hKey, valName, NULL, NULL, (BYTE *)&enabled, &size) == ERROR_SUCCESS)
+			{
+				debounce_set_monitored(&g_app.debounce, i, enabled != 0);
+			}
+		}
+		RegCloseKey(hKey);
+	}
 }
 
 // Set threshold for a specific button
@@ -423,6 +505,8 @@ static void SetButtonThreshold(MouseButton button, int threshold_ms)
 		return;
 
 	debounce_set_threshold(&g_app.debounce, button, threshold_ms, THRESHOLD_MIN_VALUE, THRESHOLD_MAX_VALUE);
+
+	SaveSettings();
 
 #ifndef NDEBUG
 	LOG_INFO(&g_app.logger, "%S threshold set to %dms",
@@ -542,7 +626,7 @@ static LRESULT CALLBACK WindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM l
 			int button_id = (menu_id - IDM_THRESHOLD_BASE) / 100;
 			int threshold_index = (menu_id - IDM_THRESHOLD_BASE) % 100;
 
-			const int button_thresholds[] = {40, 60, 70};
+			const int button_thresholds[] = {40, 50, 60};
 			const int wheel_thresholds[] = {20, 30, 35};
 
 			if (button_id >= 0 && button_id < MOUSE_BUTTON_COUNT)
@@ -575,7 +659,7 @@ static LRESULT CALLBACK WindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM l
 			{
 				wchar_t input[INPUT_BOX_INPUT_BUFFER_SIZE] = L"";
 				wchar_t prompt[INPUT_BOX_PROMPT_BUFFER_SIZE];
-				StringCchPrintf(prompt, INPUT_BOX_PROMPT_BUFFER_SIZE, L"Enter threshold for %s (%d-%dms):", debounce_get_button_name(button_id), THRESHOLD_MIN_VALUE, THRESHOLD_MAX_VALUE);
+				StringCchPrintf(prompt, INPUT_BOX_PROMPT_BUFFER_SIZE, L"Enter threshold for %S (%d-%dms):", debounce_get_button_name(button_id), THRESHOLD_MIN_VALUE, THRESHOLD_MAX_VALUE);
 
 				if (InputBox(prompt, input, _countof(input)))
 				{
@@ -641,6 +725,7 @@ int CALLBACK wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance
 	if (GetLastError() == ERROR_ALREADY_EXISTS || GetLastError() == ERROR_ACCESS_DENIED)
 	{
 		ShowErrorMessageBox(L"MouseFix is already running");
+		CloseHandle(g_app.mutex);
 		return EXIT_SUCCESS;
 	}
 
@@ -687,6 +772,7 @@ int CALLBACK wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance
 
 	// Cleanup
 	UnregisterClass(L"MouseDebouncerWndClass", hInstance);
+	UnregisterClass(INPUT_BOX_CLASS_NAME, hInstance);
 	ReleaseMutex(g_app.mutex);
 	CloseHandle(g_app.mutex);
 
