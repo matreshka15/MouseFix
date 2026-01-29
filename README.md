@@ -7,165 +7,125 @@
 ![License](https://img.shields.io/badge/license-MIT-green.svg)
 ![Size](https://img.shields.io/badge/size-120KB-orange.svg)
 
-**Stop False Clicks - Fix Your Mouse Issues Instantly**
+<br>
 
-[中文文档](README.zh-CN.md) | [🚀 Quick Start](#quick-start) | [📥 Download](#download)
+**Stop False Clicks - Fix Your Mouse Issues Instantly**<br>
+**让你的鼠标不再误触 —— 一键解决双击和滚轮故障**
+
+<br>
+
+[🇺🇸 English](#-english) | [🇨🇳 中文](#-chinese) | [📥 Download / 下载](#-download--下载)
 
 </div>
 
 ---
 
-## 🎯 What is MouseFix?
+<a name="-english"></a>
+## 🇺🇸 English
 
-**Is your mouse betraying you?**
+### 🎯 What is MouseFix?
 
-- 💥 **Phantom Double-Clicks**: One click registers as two, ruining your games and workflow.
-- 🌀 **Ghost Scrolling**: The wheel jumps up when you scroll down.
-- 💢 **Drag Drops**: Files drop halfway while dragging, text selection gets interrupted.
+**Is your mouse betraying you?** Hardware switches wear out, causing "switch bounce" where one click registers as multiple. MouseFix injects **industrial-grade software algorithms** to extend your mouse's lifespan.
 
-**Hardware failing? Software fix!**
+| 🚫 The Problem | ✅ The Solution |
+| :--- | :--- |
+| **Phantom Double-Clicks**<br>Ruins games and workflow. | **Smart Click Filtering**<br>Millisecond-precision filtering blocks noise, allowing only real clicks. |
+| **Ghost Scrolling**<br>Wheel jumps up when scrolling down. | **Wheel Glitch Fix**<br>Eliminates reverse scrolling caused by worn encoders. |
+| **Drag Drops**<br>Files drop halfway while dragging. | **Smart Drag Protection**<br>Exclusive Hybrid Heuristic algorithm fixes drag interruptions. |
 
-It's likely "switch bounce" from aging micro-switches. Don't buy a new mouse yet—MouseFix injects new life into your hardware with **industrial-grade algorithms**.
+### ✨ Key Features
 
-**The MouseFix Advantage:**
+*   **🛡️ Full Protection**: Supports Left, Right, Middle, X1 (Back), X2 (Forward), and Wheel.
+*   **🧠 Smart Drag (Hybrid Heuristic)**: Distinguishes between drags and clicks. Prevents accidental drops while maintaining fast response.
+*   **⚡ Extreme Performance**: Written in C with **Cache Line Alignment**, ensuring near-zero CPU usage (<1ms latency).
+*   **⏱️ Industrial Stability**: Powered by `GetTickCount64` for 24/7 reliability, fixing the classic 49.7-day crash bug.
+*   **🤫 Silent Operation**: No installation required, runs in the background, no log files.
 
-- 🛡️ **Smart Click Filtering**: Millisecond-precision filtering that blocks noise but lets real clicks through.
-- 🧠 **Smart Drag Protection**: Exclusive Hybrid Heuristic algorithm fixes drag-drop interruptions. Rock solid.
-- 🎡 **Wheel Glitch Fix**: Eliminates reverse scrolling caused by worn encoders.
-- 🚀 **Zero-Touch Operation**: Invisible background running, near-zero resource usage.
-- 💎 **Pure Open Source**: No ads, no tracking, forever free.
+### 🎛️ Presets & Configuration
 
----
+Customize via the system tray right-click menu.
 
-## ✨ Features
+| Preset Mode | Button Threshold | Wheel Threshold | Best For |
+| :--- | :---: | :---: | :--- |
+| 🎯 **Default** | 50ms | 30ms | Balanced for daily use |
+| 💼 **Office** | 60ms | 40ms | Strict filtering for work |
+| 🎮 **Strict** | 40ms | 20ms | Low latency for gaming |
 
-### 🎯 Full Protection
+### 🚀 Quick Start
 
-- **All mouse buttons supported**: Left, Right, Middle, X1 (Back), X2 (Forward), and Wheel
-- **Smart Drag (Hybrid Heuristic)**: Distinguishes between drags and clicks to prevent accidental drops while maintaining fast response
-- **Wheel debounce**: Prevents reverse scrolling and page jumps
-- **Extreme Performance**: Written in C with Cache Line Alignment optimization, near-zero CPU usage
-- **Silent operation**: No log files, no interference
-
-### 🎨 Simple Interface
-
-- **System tray integration**: Runs quietly in the notification area
-- **Right-click menu**: All settings accessible via context menu
-- **Visual feedback**: Checkmarks show enabled buttons
-- **Real-time statistics**: View blocked events count
-
-### ⚡ Advanced Technologies
-
-- **Smart Drag (Hybrid Heuristic)**:
-  Traditional debouncers can interrupt drag-and-drop operations if the switch bounces during release.
-  MouseFix uses a smart algorithm that detects "drag" vs "click":
-  - **Click**: Fast response, standard debounce.
-  - **Drag**: If you hold the button (>200ms) or move the mouse (>5px), it defers the release slightly to ensure it's intentional.
-  - **Result**: Reliable dragging without accidental drops, zero impact on fast clicking.
-
-- **Industrial-Grade Kernel Timing**:
-  Powered by `GetTickCount64` for 24/7 reliability, breaking through the physical time limits of 32-bit systems for uninterrupted operation.
-
-- **Low Latency Architecture**:
-  Optimized C implementation ensures the input lag is virtually non-existent (<1ms overhead).
-
-### ⚡ Three Preset Modes
-
-| Preset | Button Threshold | Wheel Threshold | Best For |
-|--------|------------------|-----------------|----------|
-| 🎯 **Default** | 50ms | 30ms | Daily use, balanced |
-| 💼 **Office** | 60ms | 40ms | Document work, stricter filtering |
-| 🎮 **Strict** | 40ms | 20ms | Gaming, precision tasks |
-
-### 🔧 Individual Button Control
-
-Toggle each mouse button independently:
-- ✓ Left Button
-- ✓ Right Button
-- ✓ Middle Button
-- ✓ X1 Button (Back)
-- ✓ X2 Button (Forward)
-- ✓ Wheel Scroll (Custom 1-200ms)
+1.  **[Download](https://github.com/matreshka15/MouseFix/releases)** and extract MouseFix (**64-bit** recommended).
+2.  **Run** `MouseFix-x64.exe` - verify the icon appears in the system tray.
+3.  **Right-click** the tray icon to:
+    *   Toggle specific buttons.
+    *   Select a Preset or set a Custom Threshold.
+4.  **Auto-Start**: Run the included `add_to_startup.ps1` script to launch on login.
 
 ---
 
-## 📥 Download
+<a name="-chinese"></a>
+## 🇨🇳 中文
 
-### Latest Release
+### 🎯 什么是 MouseFix？
 
-[View all releases](https://github.com/matreshka15/MouseFix/releases)
+**你的鼠标是否正在“背刺”你？** 微动开关老化会导致“回弹抖动”，让一次点击变成多次。MouseFix 使用**工业级算法**为你的鼠标注入第二生命，无需更换硬件。
 
-**Which version?**
-- **64-bit** for most modern computers (recommended)
-- **32-bit** for older 32-bit systems
+| 🚫 痛点问题 | ✅ 解决方案 |
+| :--- | :--- |
+| **致命双击**<br>点一下变两下，游戏误操作。 | **智能点击过滤**<br>毫秒级精准识别，只放过真实点击，拦截杂波。 |
+| **幽灵滚轮**<br>网页浏览时反向乱跳。 | **滚轮反向修正**<br>彻底消除滚轮编码器老化带来的反向信号。 |
+| **拖拽断触**<br>拖拽文件或选中文字时突然断开。 | **Smart Drag 拖拽保护**<br>独家混合启发式算法，完美修复拖拽断连，稳如泰山。 |
 
----
+### ✨ 核心功能
 
-## 🚀 Quick Start
+*   **🛡️ 全方位保护**：支持所有按键（左/右/中/X1/X2）及滚轮。
+*   **🧠 智能拖拽 (Smart Drag)**：智能区分点击与拖拽，防止拖拽中途断触，同时保持极速点击响应。
+*   **⚡ 极致性能**：底层 C 语言编写，采用**缓存行对齐 (Cache Line Alignment)** 优化，资源占用几乎为零。
+*   **⏱️ 工业级稳定性**：基于 64 位 `GetTickCount64` 内核计时，实现 7x24 小时全天候零故障运行。
+*   **🤫 零感运行**：绿色软件，无窗口、无干扰，不产生垃圾文件。
 
-1. **Download** and extract MouseFix (64-bit recommended)
-2. **Run** `MouseFix-x64.exe` (or `MouseFix-x86.exe`) - app appears in system tray
-3. **Right-click** tray icon to configure:
-   - Toggle buttons (Left, Right, Middle, X1, X2, Wheel)
-   - Select preset (Default/Office/Strict) or custom threshold
-4. **Exit** via right-click menu when done
+### 🎛️ 预设与配置
 
-**Note:** Only one instance can run. Settings are automatically saved to the Windows Registry.
+通过系统托盘图标右键菜单进行配置。
 
----
+| 预设模式 | 按键阈值 | 滚轮阈值 | 适用场景 |
+| :--- | :---: | :---: | :--- |
+| 🎯 **默认模式** | 50ms | 30ms | 日常使用，平衡性能 |
+| 💼 **办公模式** | 60ms | 40ms | 文档处理，严格过滤 |
+| 🎮 **严格模式** | 40ms | 20ms | 游戏操作，极速响应 |
 
-## 🔧 Auto-Startup Configuration
+### 🚀 快速开始
 
-Use the provided PowerShell script to configure MouseFix to start automatically:
-
-1. **Run** `add_to_startup.ps1` (right-click and select "Run with PowerShell")
-2. **Select** a startup method:
-   - **Startup Folder** (recommended) - Easy to manage, visible in startup apps
-   - **Registry** - Hidden system-level startup
-3. **Done** - MouseFix will launch automatically on next login
-
-To remove auto-startup, run the script again and select "Remove Startup".
-
-**Tip:** Press `Win+R` and type `shell:startup` to view startup folder contents.
-
----
-
-## ❓ Common Issues
-
-**Q: Still having false clicks?**
-A: Switch to **Office mode** (60ms) or set custom threshold to 80-120ms.
-
-**Q: Wheel scrolling feels delayed?**
-A: Disable wheel debounce (uncheck Wheel) or lower wheel threshold to 20ms.
-
-**Q: App won't start, "MouseFix is already running!"?**
-A: Check if MouseFix icon is already in system tray. If not, restart your computer.
-
-**Q: Settings reset after restart?**
-A: Settings are now persistent via the Windows Registry (`HKCU\Software\MouseFix`). Your configuration will be restored automatically.
-
-**Q: Antivirus alerts?**
-A: Add to antivirus whitelist. App uses system-level mouse hooks but doesn't collect data.
+1.  **[下载](https://github.com/matreshka15/MouseFix/releases)** 并解压 MouseFix（推荐 **64位** 版本）。
+2.  **运行** `MouseFix-x64.exe` - 确认系统托盘出现图标。
+3.  **右键点击** 托盘图标可以：
+    *   单独开关某个按键的防抖。
+    *   选择预设模式或输入自定义阈值。
+4.  **开机自启**：运行目录下的 `add_to_startup.ps1` 脚本即可一键配置。
 
 ---
 
-## 📄 License
+<a name="-download--下载"></a>
+## 📥 Download / 下载
 
-This project is licensed under the MIT License - see [LICENSE](LICENSE) file for details.
+> **Latest Release / 最新版本: v1.0.3**
 
----
+| File | Description |
+| :--- | :--- |
+| 📦 **[MouseFix-x64.exe](https://github.com/matreshka15/MouseFix/releases/latest/download/MouseFix-x64.exe)** | Recommended for modern PCs / 现代电脑推荐 |
+| 📦 **[MouseFix-x86.exe](https://github.com/matreshka15/MouseFix/releases/latest/download/MouseFix-x86.exe)** | For legacy 32-bit systems / 旧版32位系统 |
 
-## 🙏 Credits
+<br>
 
-- Original concept: [marvinlehmann](https://github.com/marvinlehmann)
-- Forked and improved by: [matreshka15](https://github.com/matreshka15)
+## 📄 License & Credits
 
----
+*   **License**: MIT License. Free forever.
+*   **Credits**: Original concept by [marvinlehmann](https://github.com/marvinlehmann), improved by [matreshka15](https://github.com/matreshka15).
 
 <div align="center">
+<br>
 
-**If MouseFix helped you, give us a ⭐ Star!**
+**If MouseFix saved your mouse, give us a ⭐ Star!**<br>
 
-[Back to Top](#mousefix)
+[Back to Top / 回到顶部](#mousefix)
 
 </div>
