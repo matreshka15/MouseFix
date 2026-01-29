@@ -21,16 +21,13 @@ static LRESULT CALLBACK LowLevelMouseProc(int nCode, WPARAM wParam, LPARAM lPara
 			{
 				MouseEvent event;
 				event.button = button;
+				event.timestamp = GetTickCount64();
+				event.data = 0;
 
-				// For wheel events, encode scroll direction in upper 32 bits of timestamp
+				// For wheel events, store delta in data field
 				if (wParam == WM_MOUSEWHEEL)
 				{
-					int32_t delta = GET_WHEEL_DELTA_WPARAM(pdata->mouseData);
-					event.timestamp = ((uint64_t)GetTickCount64() << 32) | (uint32_t)(delta & 0xFFFFFFFF);
-				}
-				else
-				{
-					event.timestamp = (uint64_t)pdata->time;
+					event.data = (int32_t)GET_WHEEL_DELTA_WPARAM(pdata->mouseData);
 				}
 
 				event.is_down = mouse_hook_is_button_down(wParam);

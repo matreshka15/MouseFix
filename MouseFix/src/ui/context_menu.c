@@ -227,7 +227,7 @@ bool context_menu_create(ContextMenuManager *manager, DebounceManager *debounce)
 	UINT hybrid_flags = MF_BYPOSITION | MF_STRING;
 	if (debounce->use_hybrid_heuristic)
 		hybrid_flags |= MF_CHECKED;
-	// Use a simple, user-friendly name "Smart Drag Protection" (智能防断触)
+	// Use a simple, user-friendly name "Smart Drag Protection"
 	InsertMenu(manager->menu, -1, hybrid_flags, IDM_TOGGLE_HYBRID, L"Smart Drag Protection");
 
 	InsertMenu(manager->menu, -1, MF_BYPOSITION | MF_STRING, IDM_RESET_STATS, L"Reset Statistics");

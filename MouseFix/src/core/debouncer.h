@@ -28,16 +28,14 @@ typedef struct
 typedef struct
 {
 	ButtonDebounceData buttons[MOUSE_BUTTON_COUNT]; // Array of button debounce data
-	bool use_qpc;									// Whether to use QueryPerformanceCounter (1 byte)
 	bool use_hybrid_heuristic;						// Whether to use Hybrid Heuristic Scheme (1 byte)
-	uint8_t _padding1[6];							// Padding to align counts_per_second (6 bytes)
-	uint64_t counts_per_second;						// QPC frequency if use_qpc is true (8 bytes)
+	uint8_t _padding1[7];							// Padding to align to 8 bytes
 	CRITICAL_SECTION cs;							// Critical section for thread safety (40 bytes on x64)
-	uint8_t _padding2[8];							// Padding to align to 64 bytes (8 bytes)
+	uint8_t _padding2[16];							// Padding to align to 64 bytes
 } __declspec(align(64)) DebounceManager;
 
 // Initialize debounce manager
-bool debounce_init(DebounceManager *manager, bool use_qpc);
+bool debounce_init(DebounceManager *manager);
 
 // Cleanup debounce manager
 void debounce_cleanup(DebounceManager *manager);

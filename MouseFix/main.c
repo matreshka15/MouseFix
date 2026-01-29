@@ -99,20 +99,6 @@ static LRESULT CALLBACK OnMouseHookCallback(const MouseEvent *event, void *user_
 {
 	AppState *app = (AppState *)user_data;
 
-	// Get current time - optimized path
-	uint64_t current_time;
-	// Read use_qpc atomically to avoid race condition
-	if (*(volatile bool *)&app->time_manager.use_qpc)
-	{
-		LARGE_INTEGER li;
-		QueryPerformanceCounter(&li);
-		current_time = li.QuadPart;
-	}
-	else
-	{
-		current_time = event->timestamp;
-	}
-
 	// Process event directly - avoid creating intermediate structure
 	if (debounce_process_event(&app->debounce, event))
 	{
@@ -147,8 +133,8 @@ static bool InitializeApp(void)
 		return false;
 	}
 
-	// Initialize time manager with default settings (QPC disabled)
-	if (!time_manager_init(&g_app.time_manager, false))
+	// Initialize time manager
+	if (!time_manager_init(&g_app.time_manager))
 	{
 #ifndef NDEBUG
 		LOG_ERROR(&g_app.logger, "Failed to initialize time manager");
@@ -157,7 +143,7 @@ static bool InitializeApp(void)
 	}
 
 	// Initialize debounce manager
-	if (!debounce_init(&g_app.debounce, false))
+	if (!debounce_init(&g_app.debounce))
 	{
 #ifndef NDEBUG
 		LOG_ERROR(&g_app.logger, "Failed to initialize debounce manager");
@@ -232,6 +218,9 @@ static void ShutdownApp(void)
 #ifndef NDEBUG
 	LOG_INFO(&g_app.logger, "Shutting down application...");
 #endif
+
+	// Stop the hybrid heuristic timer
+	KillTimer(g_app.hWnd, 1);
 
 	// Remove tray icon
 	tray_icon_remove(&g_app.tray_icon);
@@ -492,7 +481,7 @@ static void LoadSettings(void)
 	HKEY hKey;
 	if (RegOpenKeyExW(HKEY_CURRENT_USER, REG_SETTINGS_KEY, 0, KEY_READ, &hKey) == ERROR_SUCCESS)
 	{
-		DWORD threshold, enabled, size = sizeof(DWORD);
+		DWORD size = sizeof(DWORD);
 		DWORD hybrid;
 
 		// Load hybrid heuristic setting

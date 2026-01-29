@@ -26,6 +26,7 @@ typedef struct
 	long x;
 	long y;
 	bool is_injected;
+	int32_t data;
 } MouseEvent;
 
 // Mouse hook callback function type

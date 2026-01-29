@@ -2,28 +2,18 @@
 #include "time_manager.h"
 #include <string.h>
 
-// Initialize debounce manager with specified time source
+// Initialize debounce manager
 // Parameters:
 //   manager - Pointer to DebounceManager structure to initialize
-//   use_qpc - If true, use QueryPerformanceCounter for high-precision timing
 // Returns:
 //   true on success, false on failure
-bool debounce_init(DebounceManager *manager, bool use_qpc)
+bool debounce_init(DebounceManager *manager)
 {
 	if (!manager)
 		return false;
 
 	memset(manager, 0, sizeof(DebounceManager));
-	manager->use_qpc = use_qpc;
 	manager->use_hybrid_heuristic = true; // Default to enabled
-
-	if (use_qpc)
-	{
-		if (!QueryPerformanceFrequency((LARGE_INTEGER *)&manager->counts_per_second))
-		{
-			manager->use_qpc = false;
-		}
-	}
 
 	// Initialize critical section for thread safety
 	InitializeCriticalSection(&manager->cs);
@@ -76,13 +66,10 @@ bool debounce_process_event(DebounceManager *manager, const MouseEvent *event)
 	// Handle wheel events specially
 	if (event->button == MOUSE_BUTTON_WHEEL)
 	{
-		// For wheel events, we encode the scroll direction in the timestamp field:
-		// - Upper 32 bits: Time of the event (GetTickCount64)
-		// - Lower 32 bits: Wheel delta (positive for scroll up, negative for scroll down)
-		// This allows us to pass both direction and time through the same parameter
-		int32_t wheel_direction = (int32_t)(event->timestamp & 0xFFFFFFFF);
-		int32_t direction_sign = (wheel_direction > 0) ? 1 : (wheel_direction < 0) ? -1
-																				   : 0;
+		// For wheel events, the delta is stored in the data field
+		int32_t wheel_delta = event->data;
+		int32_t direction_sign = (wheel_delta > 0) ? 1 : (wheel_delta < 0) ? -1
+																		   : 0;
 
 		if (direction_sign == 0)
 		{
@@ -94,7 +81,7 @@ bool debounce_process_event(DebounceManager *manager, const MouseEvent *event)
 		// If the user tries to scroll in the opposite direction too quickly, block it
 		if (data->wheelDirection != 0 && data->wheelDirection != direction_sign)
 		{
-			uint64_t elapsed_time = (uint64_t)(event->timestamp >> 32) - data->previousTime;
+			uint64_t elapsed_time = event->timestamp - data->previousTime;
 			if (elapsed_time <= data->threshold)
 			{
 				// Block this reverse scroll
@@ -105,7 +92,7 @@ bool debounce_process_event(DebounceManager *manager, const MouseEvent *event)
 
 		// Update direction and timestamp for next comparison
 		data->wheelDirection = direction_sign;
-		data->previousTime = (uint64_t)(event->timestamp >> 32);
+		data->previousTime = event->timestamp;
 	}
 	else
 	{
@@ -194,15 +181,7 @@ void debounce_set_threshold(DebounceManager *manager, MouseButton button, uint32
 	EnterCriticalSection(&manager->cs);
 
 	manager->buttons[button].thresholdMs = threshold_ms;
-
-	if (manager->use_qpc)
-	{
-		manager->buttons[button].threshold = (uint64_t)threshold_ms * manager->counts_per_second / 1000;
-	}
-	else
-	{
-		manager->buttons[button].threshold = threshold_ms;
-	}
+	manager->buttons[button].threshold = threshold_ms;
 
 	LeaveCriticalSection(&manager->cs);
 }
@@ -403,7 +382,7 @@ void debounce_check_deferred_releases(DebounceManager *manager)
 	} actions[MOUSE_BUTTON_COUNT] = {0};
 
 	EnterCriticalSection(&manager->cs);
-	// Use GetTickCount64 to be consistent with event timestamps (mostly)
+	// Use GetTickCount64 to be consistent with event timestamps
 	uint64_t now = GetTickCount64();
 
 	for (int i = 0; i < MOUSE_BUTTON_COUNT; i++)
