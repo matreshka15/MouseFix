@@ -87,6 +87,7 @@ static void CDECL ShowErrorMessageBox(LPCWSTR message, ...);
 static void ToggleEnableAll(void);
 static void ToggleButton(MouseButton button);
 static void ToggleWheel(void);
+static void ToggleHybridHeuristic(void);
 static void ApplyPreset(const PresetConfig *preset);
 static void SetButtonThreshold(MouseButton button, int threshold_ms);
 static bool InputBox(LPCWSTR prompt, LPWSTR buffer, int buffer_size);
@@ -219,7 +220,9 @@ static bool InitializeApp(void)
 #ifndef NDEBUG
 	LOG_INFO(&g_app.logger, "Application initialized successfully");
 #endif
-
+	// Set timer for checking deferred releases (Hybrid Heuristic)
+	// Check every 15ms (approx 66Hz) to ensure timely release of dragged items
+	SetTimer(g_app.hWnd, 1, 15, NULL);
 	return true;
 }
 
@@ -249,6 +252,17 @@ static void ShutdownApp(void)
 }
 
 // Toggle enable/disable all buttons
+// Toggle hybrid heuristic
+static void ToggleHybridHeuristic(void)
+{
+	bool new_state = !g_app.debounce.use_hybrid_heuristic;
+	debounce_set_hybrid_heuristic(&g_app.debounce, new_state);
+	SaveSettings();
+#ifndef NDEBUG
+	LOG_INFO(&g_app.logger, "Hybrid heuristic set to %s", new_state ? "Enabled" : "Disabled");
+#endif
+}
+
 static void ToggleEnableAll(void)
 {
 	bool is_enabled = debounce_is_any_monitored(&g_app.debounce);
@@ -452,6 +466,10 @@ static void SaveSettings(void)
 	HKEY hKey;
 	if (RegCreateKeyExW(HKEY_CURRENT_USER, REG_SETTINGS_KEY, 0, NULL, REG_OPTION_NON_VOLATILE, KEY_WRITE, NULL, &hKey, NULL) == ERROR_SUCCESS)
 	{
+		// Save hybrid heuristic setting
+		DWORD hybrid = g_app.debounce.use_hybrid_heuristic ? 1 : 0;
+		RegSetValueExW(hKey, L"HybridHeuristic", 0, REG_DWORD, (BYTE *)&hybrid, sizeof(DWORD));
+
 		for (int i = 0; i < MOUSE_BUTTON_COUNT; i++)
 		{
 			wchar_t valName[64];
@@ -474,11 +492,22 @@ static void LoadSettings(void)
 	HKEY hKey;
 	if (RegOpenKeyExW(HKEY_CURRENT_USER, REG_SETTINGS_KEY, 0, KEY_READ, &hKey) == ERROR_SUCCESS)
 	{
+		DWORD threshold, enabled, size = sizeof(DWORD);
+		DWORD hybrid;
+
+		// Load hybrid heuristic setting
+		if (RegQueryValueExW(hKey, L"HybridHeuristic", NULL, NULL, (BYTE *)&hybrid, &size) == ERROR_SUCCESS)
+		{
+			debounce_set_hybrid_heuristic(&g_app.debounce, hybrid != 0);
+		}
+
 		for (int i = 0; i < MOUSE_BUTTON_COUNT; i++)
 		{
 			wchar_t valName[64];
 			DWORD threshold, enabled, size = sizeof(DWORD);
 
+			// Re-init size for each query
+			size = sizeof(DWORD);
 			// Load threshold
 			StringCchPrintfW(valName, 64, L"Btn%d_Threshold", i);
 			if (RegQueryValueExW(hKey, valName, NULL, NULL, (BYTE *)&threshold, &size) == ERROR_SUCCESS)
@@ -539,6 +568,13 @@ static LRESULT CALLBACK WindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM l
 
 		return 0;
 
+	case WM_TIMER:
+		if (wParam == 1)
+		{
+			debounce_check_deferred_releases(&g_app.debounce);
+		}
+		return 0;
+
 	case WM_NOTIFYICON:
 		if (LOWORD(lParam) == WM_CONTEXTMENU)
 		{
@@ -561,6 +597,11 @@ static LRESULT CALLBACK WindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM l
 		if (LOWORD(wParam) == IDM_TOGGLE_ENABLE)
 		{
 			ToggleEnableAll();
+			return 0;
+		}
+		if (LOWORD(wParam) == IDM_TOGGLE_HYBRID)
+		{
+			ToggleHybridHeuristic();
 			return 0;
 		}
 		if (LOWORD(wParam) == IDM_RESET_STATS)

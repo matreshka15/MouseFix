@@ -5,6 +5,7 @@
 #define IDM_EXIT (WM_USER + 10)
 #define IDM_TOGGLE_ENABLE (WM_USER + 11)
 #define IDM_RESET_STATS (WM_USER + 12)
+#define IDM_TOGGLE_HYBRID (WM_USER + 13)
 
 // Preset menu IDs
 #define IDM_PRESET_DEFAULT (WM_USER + 20)

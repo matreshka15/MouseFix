@@ -23,6 +23,9 @@ typedef struct
 	MouseButton button;
 	uint64_t timestamp;
 	bool is_down;
+	long x;
+	long y;
+	bool is_injected;
 } MouseEvent;
 
 // Mouse hook callback function type

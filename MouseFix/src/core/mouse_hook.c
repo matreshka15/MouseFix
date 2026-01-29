@@ -34,6 +34,9 @@ static LRESULT CALLBACK LowLevelMouseProc(int nCode, WPARAM wParam, LPARAM lPara
 				}
 
 				event.is_down = mouse_hook_is_button_down(wParam);
+				event.x = pdata->pt.x;
+				event.y = pdata->pt.y;
+				event.is_injected = (pdata->flags & LLMHF_INJECTED) || (pdata->flags & LLMHF_LOWER_IL_INJECTED);
 
 				LRESULT result = g_manager->callback(&event, g_manager->user_data);
 				if (result != 0)

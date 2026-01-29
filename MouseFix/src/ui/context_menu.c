@@ -223,6 +223,13 @@ bool context_menu_create(ContextMenuManager *manager, DebounceManager *debounce)
 	// Add control section
 	InsertMenu(manager->menu, -1, MF_BYPOSITION | MF_STRING, IDM_TOGGLE_ENABLE,
 			   is_enabled ? L"Disable All" : L"Enable All");
+
+	UINT hybrid_flags = MF_BYPOSITION | MF_STRING;
+	if (debounce->use_hybrid_heuristic)
+		hybrid_flags |= MF_CHECKED;
+	// Use a simple, user-friendly name "Smart Drag Protection" (智能防断触)
+	InsertMenu(manager->menu, -1, hybrid_flags, IDM_TOGGLE_HYBRID, L"Smart Drag Protection");
+
 	InsertMenu(manager->menu, -1, MF_BYPOSITION | MF_STRING, IDM_RESET_STATS, L"Reset Statistics");
 
 	InsertMenu(manager->menu, -1, MF_BYPOSITION | MF_SEPARATOR, 0, NULL);

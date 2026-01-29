@@ -15,6 +15,7 @@ bool debounce_init(DebounceManager *manager, bool use_qpc)
 
 	memset(manager, 0, sizeof(DebounceManager));
 	manager->use_qpc = use_qpc;
+	manager->use_hybrid_heuristic = true; // Default to enabled
 
 	if (use_qpc)
 	{
@@ -56,6 +57,12 @@ bool debounce_process_event(DebounceManager *manager, const MouseEvent *event)
 	EnterCriticalSection(&manager->cs);
 
 	ButtonDebounceData *data = &manager->buttons[event->button];
+
+	if (event->is_injected)
+	{
+		LeaveCriticalSection(&manager->cs);
+		return false;
+	}
 
 	// Early return if button is not monitored (most common case)
 	if (!data->isMonitored)
@@ -105,17 +112,32 @@ bool debounce_process_event(DebounceManager *manager, const MouseEvent *event)
 		// Optimize branch prediction by checking is_down first
 		if (event->is_down)
 		{
-			// Check if event should be blocked
-			if (!data->isBlocked)
+			// Check if we are deferring a release (Hybrid Heuristic)
+			if (manager->use_hybrid_heuristic && data->isDeferringRelease)
 			{
-				uint64_t elapsed_time = event->timestamp - data->previousTime;
-				if (elapsed_time <= data->threshold)
+				data->isDeferringRelease = false;
+				data->blocks++;
+				should_block = true;
+				data->previousTime = event->timestamp;
+			}
+			else
+			{
+				// Check if event should be blocked
+				if (!data->isBlocked)
 				{
-					// Block this event
-					data->isBlocked = true;
-					data->blocks++;
-					should_block = true;
+					uint64_t elapsed_time = event->timestamp - data->previousTime;
+					if (elapsed_time <= data->threshold)
+					{
+						// Block this event
+						data->isBlocked = true;
+						data->blocks++;
+						should_block = true;
+					}
 				}
+				data->previousTime = event->timestamp;
+				data->downTime = event->timestamp;
+				data->downPoint.x = event->x;
+				data->downPoint.y = event->y;
 			}
 		}
 		else
@@ -127,8 +149,26 @@ bool debounce_process_event(DebounceManager *manager, const MouseEvent *event)
 				data->isBlocked = false;
 				should_block = true;
 			}
-			// Update timestamp for next comparison
+
 			data->previousTime = event->timestamp;
+
+			// Hybrid Heuristic
+			if (!should_block && manager->use_hybrid_heuristic)
+			{
+				uint64_t holdTime = event->timestamp - data->downTime;
+				long dx = event->x - data->downPoint.x;
+				long dy = event->y - data->downPoint.y;
+				long distSq = dx * dx + dy * dy;
+
+				if (holdTime > 200 || distSq > 25)
+				{
+					data->isDeferringRelease = true;
+					data->deferStartTime = event->timestamp;
+					data->deferUpPoint.x = event->x;
+					data->deferUpPoint.y = event->y;
+					should_block = true;
+				}
+			}
 		}
 	}
 
@@ -164,6 +204,36 @@ void debounce_set_threshold(DebounceManager *manager, MouseButton button, uint32
 		manager->buttons[button].threshold = threshold_ms;
 	}
 
+	LeaveCriticalSection(&manager->cs);
+}
+
+// Set whether to use Hybrid Heuristic Scheme
+// Parameters:
+//   manager - Pointer to DebounceManager structure
+//   use_hybrid - true to enable, false to disable
+void debounce_set_hybrid_heuristic(DebounceManager *manager, bool use_hybrid)
+{
+	if (!manager)
+		return;
+
+	EnterCriticalSection(&manager->cs);
+	manager->use_hybrid_heuristic = use_hybrid;
+
+	// If disabling, clear any pending deferred releases
+	if (!use_hybrid)
+	{
+		for (int i = 0; i < MOUSE_BUTTON_COUNT; i++)
+		{
+			if (manager->buttons[i].isDeferringRelease)
+			{
+				manager->buttons[i].isDeferringRelease = false;
+				// Since we are disabling, we can't reliably inject now,
+				// but since the original event was swallowed, the user might be stuck in "drag".
+				// However, if we do nothing, the next click will clear it or the user clicks again.
+				// A cleaner way is to let the user click again.
+			}
+		}
+	}
 	LeaveCriticalSection(&manager->cs);
 }
 
@@ -311,8 +381,77 @@ void debounce_reset_statistics(DebounceManager *manager)
 	{
 		manager->buttons[i].blocks = 0;
 		manager->buttons[i].isBlocked = false;
+		manager->buttons[i].isDeferringRelease = false;
 		manager->buttons[i].wheelDirection = 0;
 	}
 
 	LeaveCriticalSection(&manager->cs);
+}
+
+// Check for deferred releases and inject events if necessary
+void debounce_check_deferred_releases(DebounceManager *manager)
+{
+	if (!manager)
+		return;
+
+	// Use a temporary list to store actions to perform outside the critical section
+	struct
+	{
+		bool inject;
+		DWORD flags;
+		DWORD mouseData;
+	} actions[MOUSE_BUTTON_COUNT] = {0};
+
+	EnterCriticalSection(&manager->cs);
+	// Use GetTickCount64 to be consistent with event timestamps (mostly)
+	uint64_t now = GetTickCount64();
+
+	for (int i = 0; i < MOUSE_BUTTON_COUNT; i++)
+	{
+		ButtonDebounceData *data = &manager->buttons[i];
+		if (data->isDeferringRelease)
+		{
+			// 50ms delay
+			if (now - data->deferStartTime > 50)
+			{
+				data->isDeferringRelease = false;
+				actions[i].inject = true;
+
+				switch (i)
+				{
+				case MOUSE_BUTTON_LEFT:
+					actions[i].flags = MOUSEEVENTF_LEFTUP;
+					break;
+				case MOUSE_BUTTON_RIGHT:
+					actions[i].flags = MOUSEEVENTF_RIGHTUP;
+					break;
+				case MOUSE_BUTTON_MIDDLE:
+					actions[i].flags = MOUSEEVENTF_MIDDLEUP;
+					break;
+				case MOUSE_BUTTON_X1:
+					actions[i].flags = MOUSEEVENTF_XUP;
+					actions[i].mouseData = XBUTTON1;
+					break;
+				case MOUSE_BUTTON_X2:
+					actions[i].flags = MOUSEEVENTF_XUP;
+					actions[i].mouseData = XBUTTON2;
+					break;
+				}
+			}
+		}
+	}
+	LeaveCriticalSection(&manager->cs);
+
+	// Perform injections
+	for (int i = 0; i < MOUSE_BUTTON_COUNT; i++)
+	{
+		if (actions[i].inject && actions[i].flags)
+		{
+			INPUT input = {0};
+			input.type = INPUT_MOUSE;
+			input.mi.dwFlags = actions[i].flags;
+			input.mi.mouseData = actions[i].mouseData;
+			SendInput(1, &input, sizeof(INPUT));
+		}
+	}
 }
