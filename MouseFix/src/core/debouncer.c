@@ -1,436 +1,389 @@
 #include "debouncer.h"
-#include "time_manager.h"
 #include <string.h>
 
-// Initialize debounce manager
-// Parameters:
-//   manager - Pointer to DebounceManager structure to initialize
-// Returns:
-//   true on success, false on failure
+/*
+ * Smart Drag - State machine based drag protection
+ *
+ * State transitions:
+ *   IDLE -> PRESSED -> DRAGGING -> CONFIRMING -> IDLE
+ *                |                       ^
+ *              BLOCKED -----------------+
+ *                  (bounce down cancels confirm)
+ */
+
+#define SMART_DRAG_HOLD_THRESHOLD_MS  200
+#define SMART_DRAG_DIST_THRESHOLD_SQ  25   /* 5px */
+#define SMART_DRAG_CONFIRM_TIMEOUT_MS 150
+
+uint64_t debounce_get_timestamp(DebounceManager *manager)
+{
+    if (manager && manager->qpc_available)
+    {
+        LARGE_INTEGER now;
+        QueryPerformanceCounter(&now);
+        return (uint64_t)(now.QuadPart * 1000000 / manager->qpc_frequency);
+    }
+    return GetTickCount64() * 1000;
+}
+
+static uint64_t timestamp_to_ms(uint64_t timestamp, bool qpc_available)
+{
+    return timestamp / 1000;
+}
+
 bool debounce_init(DebounceManager *manager)
 {
-	if (!manager)
-		return false;
+    if (!manager)
+        return false;
 
-	memset(manager, 0, sizeof(DebounceManager));
-	manager->use_hybrid_heuristic = true; // Default to enabled
+    memset(manager, 0, sizeof(DebounceManager));
+    manager->use_hybrid_heuristic = true;
 
-	// Initialize critical section for thread safety
-	InitializeCriticalSection(&manager->cs);
+    LARGE_INTEGER freq;
+    manager->qpc_available = QueryPerformanceFrequency(&freq) != 0;
+    manager->qpc_frequency = manager->qpc_available ? freq.QuadPart : 0;
 
-	return true;
+    InitializeCriticalSection(&manager->cs);
+    return true;
 }
 
-// Cleanup and release debounce manager resources
-// Parameters:
-//   manager - Pointer to DebounceManager structure to cleanup
 void debounce_cleanup(DebounceManager *manager)
 {
-	if (!manager)
-		return;
-
-	DeleteCriticalSection(&manager->cs);
+    if (!manager)
+        return;
+    DeleteCriticalSection(&manager->cs);
 }
 
-// Process a mouse event and determine if it should be blocked
-// Parameters:
-//   manager - Pointer to DebounceManager structure
-//   event - Pointer to MouseEvent structure containing event data
-// Returns:
-//   true if event should be blocked, false if it should pass through
 bool debounce_process_event(DebounceManager *manager, const MouseEvent *event)
 {
-	// Early return for invalid inputs
-	if (!manager || !event)
-		return false;
+    if (!manager || !event)
+        return false;
 
-	EnterCriticalSection(&manager->cs);
+    EnterCriticalSection(&manager->cs);
 
-	ButtonDebounceData *data = &manager->buttons[event->button];
+    ButtonDebounceData *data = &manager->buttons[event->button];
 
-	if (event->is_injected)
-	{
-		LeaveCriticalSection(&manager->cs);
-		return false;
-	}
+    if (event->is_injected)
+    {
+        LeaveCriticalSection(&manager->cs);
+        return false;
+    }
 
-	// Early return if button is not monitored (most common case)
-	if (!data->isMonitored)
-	{
-		LeaveCriticalSection(&manager->cs);
-		return false;
-	}
+    if (!data->isMonitored)
+    {
+        LeaveCriticalSection(&manager->cs);
+        return false;
+    }
 
-	bool should_block = false;
+    bool should_block = false;
 
-	// Handle wheel events specially
-	if (event->button == MOUSE_BUTTON_WHEEL)
-	{
-		// For wheel events, the delta is stored in the data field
-		int32_t wheel_delta = event->data;
-		int32_t direction_sign = (wheel_delta > 0) ? 1 : (wheel_delta < 0) ? -1
-																		   : 0;
+    /* Wheel handling */
+    if (event->button == MOUSE_BUTTON_WHEEL)
+    {
+        int32_t wheel_delta = event->data;
+        int32_t direction_sign = (wheel_delta > 0) ? 1 : (wheel_delta < 0) ? -1 : 0;
 
-		if (direction_sign == 0)
-		{
-			LeaveCriticalSection(&manager->cs);
-			return false; // Ignore zero delta
-		}
+        if (direction_sign == 0)
+        {
+            LeaveCriticalSection(&manager->cs);
+            return false;
+        }
 
-		// Check if direction changed within the debounce threshold
-		// If the user tries to scroll in the opposite direction too quickly, block it
-		if (data->wheelDirection != 0 && data->wheelDirection != direction_sign)
-		{
-			uint64_t elapsed_time = event->timestamp - data->previousTime;
-			if (elapsed_time <= data->threshold)
-			{
-				// Block this reverse scroll
-				data->blocks++;
-				should_block = true;
-			}
-		}
+        if (data->wheelDirection != 0 && data->wheelDirection != direction_sign)
+        {
+            uint64_t elapsed_time = event->timestamp - data->previousTime;
+            if (elapsed_time <= data->thresholdMs)
+            {
+                data->blocks++;
+                should_block = true;
+            }
+        }
 
-		// Update direction and timestamp for next comparison
-		data->wheelDirection = direction_sign;
-		data->previousTime = event->timestamp;
-	}
-	else
-	{
-		// Optimize branch prediction by checking is_down first
-		if (event->is_down)
-		{
-			// Check if we are deferring a release (Hybrid Heuristic)
-			if (manager->use_hybrid_heuristic && data->isDeferringRelease)
-			{
-				data->isDeferringRelease = false;
-				data->blocks++;
-				should_block = true;
-				data->previousTime = event->timestamp;
-			}
-			else
-			{
-				// Check if event should be blocked
-				if (!data->isBlocked)
-				{
-					uint64_t elapsed_time = event->timestamp - data->previousTime;
-					if (elapsed_time <= data->threshold)
-					{
-						// Block this event
-						data->isBlocked = true;
-						data->blocks++;
-						should_block = true;
-					}
-				}
-				data->previousTime = event->timestamp;
-				data->downTime = event->timestamp;
-				data->downPoint.x = event->x;
-				data->downPoint.y = event->y;
-			}
-		}
-		else
-		{
-			// Button up event
-			if (data->isBlocked)
-			{
-				// Unblock and block this event
-				data->isBlocked = false;
-				should_block = true;
-			}
+        data->wheelDirection = direction_sign;
+        data->previousTime = event->timestamp;
+    }
+    /* Button handling - state machine */
+    else
+    {
+        uint64_t now = event->timestamp;
+        uint64_t elapsed = now - data->previousTime;
 
-			data->previousTime = event->timestamp;
+        if (event->is_down)
+        {
+            switch (data->state)
+            {
+            case BTN_STATE_IDLE:
+            case BTN_STATE_PRESSED:
+            case BTN_STATE_DRAGGING:
+                if (elapsed <= data->thresholdMs)
+                {
+                    data->state = BTN_STATE_BLOCKED;
+                    data->blocks++;
+                    should_block = true;
+                }
+                else
+                {
+                    data->state = BTN_STATE_PRESSED;
+                    data->downTime = now;
+                    data->downPoint.x = event->x;
+                    data->downPoint.y = event->y;
+                }
+                break;
 
-			// Hybrid Heuristic
-			if (!should_block && manager->use_hybrid_heuristic)
-			{
-				uint64_t holdTime = event->timestamp - data->downTime;
-				long dx = event->x - data->downPoint.x;
-				long dy = event->y - data->downPoint.y;
-				long distSq = dx * dx + dy * dy;
+            case BTN_STATE_CONFIRMING:
+                /* Bounce down during confirm: cancel, back to DRAGGING */
+                data->state = BTN_STATE_DRAGGING;
+                data->downTime = now;
+                data->downPoint.x = event->x;
+                data->downPoint.y = event->y;
+                data->blocks++;
+                should_block = true;
+                break;
 
-				if (holdTime > 200 || distSq > 25)
-				{
-					data->isDeferringRelease = true;
-					data->deferStartTime = event->timestamp;
-					data->deferUpPoint.x = event->x;
-					data->deferUpPoint.y = event->y;
-					should_block = true;
-				}
-			}
-		}
-	}
+            case BTN_STATE_BLOCKED:
+                data->blocks++;
+                should_block = true;
+                break;
+            }
+        }
+        else
+        {
+            switch (data->state)
+            {
+            case BTN_STATE_IDLE:
+                break;
 
-	LeaveCriticalSection(&manager->cs);
-	return should_block;
+            case BTN_STATE_BLOCKED:
+                data->state = BTN_STATE_IDLE;
+                data->blocks++;
+                should_block = true;
+                break;
+
+            case BTN_STATE_PRESSED:
+                if (manager->use_hybrid_heuristic)
+                {
+                    uint64_t holdTime = now - data->downTime;
+                    long dx = event->x - data->downPoint.x;
+                    long dy = event->y - data->downPoint.y;
+                    long distSq = dx * dx + dy * dy;
+
+                    if (holdTime > SMART_DRAG_HOLD_THRESHOLD_MS || distSq > SMART_DRAG_DIST_THRESHOLD_SQ)
+                    {
+                        data->state = BTN_STATE_CONFIRMING;
+                        data->confirmStartTime = now;
+                        should_block = true;
+                    }
+                    else
+                    {
+                        data->state = BTN_STATE_IDLE;
+                    }
+                }
+                else
+                {
+                    data->state = BTN_STATE_IDLE;
+                }
+                break;
+
+            case BTN_STATE_DRAGGING:
+                if (manager->use_hybrid_heuristic)
+                {
+                    data->state = BTN_STATE_CONFIRMING;
+                    data->confirmStartTime = now;
+                    should_block = true;
+                }
+                else
+                {
+                    data->state = BTN_STATE_IDLE;
+                }
+                break;
+
+            case BTN_STATE_CONFIRMING:
+                data->blocks++;
+                should_block = true;
+                break;
+            }
+        }
+
+        data->previousTime = now;
+    }
+
+    LeaveCriticalSection(&manager->cs);
+    return should_block;
 }
 
-// Set debounce threshold for a specific button
-// Parameters:
-//   manager - Pointer to DebounceManager structure
-//   button - Mouse button to set threshold for
-//   threshold_ms - Threshold value in milliseconds
-//   min_threshold_ms - Minimum allowed threshold value
-//   max_threshold_ms - Maximum allowed threshold value
+void debounce_check_deferred_releases(DebounceManager *manager)
+{
+    if (!manager)
+        return;
+
+    struct
+    {
+        bool inject;
+        DWORD flags;
+        DWORD mouseData;
+    } actions[MOUSE_BUTTON_COUNT] = {0};
+
+    EnterCriticalSection(&manager->cs);
+    uint64_t now = debounce_get_timestamp(manager);
+
+    for (int i = 0; i < MOUSE_BUTTON_COUNT; i++)
+    {
+        ButtonDebounceData *data = &manager->buttons[i];
+        if (data->state == BTN_STATE_CONFIRMING)
+        {
+            uint64_t elapsed_ms = timestamp_to_ms(now - data->confirmStartTime, manager->qpc_available);
+            if (elapsed_ms >= SMART_DRAG_CONFIRM_TIMEOUT_MS)
+            {
+                data->state = BTN_STATE_IDLE;
+                actions[i].inject = true;
+
+                switch (i)
+                {
+                case MOUSE_BUTTON_LEFT:
+                    actions[i].flags = MOUSEEVENTF_LEFTUP;
+                    break;
+                case MOUSE_BUTTON_RIGHT:
+                    actions[i].flags = MOUSEEVENTF_RIGHTUP;
+                    break;
+                case MOUSE_BUTTON_MIDDLE:
+                    actions[i].flags = MOUSEEVENTF_MIDDLEUP;
+                    break;
+                case MOUSE_BUTTON_X1:
+                    actions[i].flags = MOUSEEVENTF_XUP;
+                    actions[i].mouseData = XBUTTON1;
+                    break;
+                case MOUSE_BUTTON_X2:
+                    actions[i].flags = MOUSEEVENTF_XUP;
+                    actions[i].mouseData = XBUTTON2;
+                    break;
+                }
+            }
+        }
+    }
+    LeaveCriticalSection(&manager->cs);
+
+    for (int i = 0; i < MOUSE_BUTTON_COUNT; i++)
+    {
+        if (actions[i].inject && actions[i].flags)
+        {
+            INPUT input = {0};
+            input.type = INPUT_MOUSE;
+            input.mi.dwFlags = actions[i].flags;
+            input.mi.mouseData = actions[i].mouseData;
+            SendInput(1, &input, sizeof(INPUT));
+        }
+    }
+}
+
 void debounce_set_threshold(DebounceManager *manager, MouseButton button, uint32_t threshold_ms, uint32_t min_threshold_ms, uint32_t max_threshold_ms)
 {
-	if (!manager || button < 0 || button >= MOUSE_BUTTON_COUNT)
-		return;
+    if (!manager || button < 0 || button >= MOUSE_BUTTON_COUNT)
+        return;
+    if (threshold_ms < min_threshold_ms || threshold_ms > max_threshold_ms)
+        return;
 
-	if (threshold_ms < min_threshold_ms || threshold_ms > max_threshold_ms)
-		return;
-
-	EnterCriticalSection(&manager->cs);
-
-	manager->buttons[button].thresholdMs = threshold_ms;
-	manager->buttons[button].threshold = threshold_ms;
-
-	LeaveCriticalSection(&manager->cs);
+    EnterCriticalSection(&manager->cs);
+    manager->buttons[button].thresholdMs = threshold_ms;
+    LeaveCriticalSection(&manager->cs);
 }
 
-// Set whether to use Hybrid Heuristic Scheme
-// Parameters:
-//   manager - Pointer to DebounceManager structure
-//   use_hybrid - true to enable, false to disable
 void debounce_set_hybrid_heuristic(DebounceManager *manager, bool use_hybrid)
 {
-	if (!manager)
-		return;
+    if (!manager)
+        return;
 
-	EnterCriticalSection(&manager->cs);
-	manager->use_hybrid_heuristic = use_hybrid;
+    EnterCriticalSection(&manager->cs);
+    manager->use_hybrid_heuristic = use_hybrid;
 
-	// If disabling, clear any pending deferred releases
-	if (!use_hybrid)
-	{
-		for (int i = 0; i < MOUSE_BUTTON_COUNT; i++)
-		{
-			if (manager->buttons[i].isDeferringRelease)
-			{
-				manager->buttons[i].isDeferringRelease = false;
-				// Since we are disabling, we can't reliably inject now,
-				// but since the original event was swallowed, the user might be stuck in "drag".
-				// However, if we do nothing, the next click will clear it or the user clicks again.
-				// A cleaner way is to let the user click again.
-			}
-		}
-	}
-	LeaveCriticalSection(&manager->cs);
+    if (!use_hybrid)
+    {
+        for (int i = 0; i < MOUSE_BUTTON_COUNT; i++)
+        {
+            if (manager->buttons[i].state == BTN_STATE_CONFIRMING)
+                manager->buttons[i].state = BTN_STATE_IDLE;
+        }
+    }
+    LeaveCriticalSection(&manager->cs);
 }
 
-// Enable or disable monitoring for a specific button
-// Parameters:
-//   manager - Pointer to DebounceManager structure
-//   button - Mouse button to enable/disable monitoring for
-//   monitored - true to enable monitoring, false to disable
 void debounce_set_monitored(DebounceManager *manager, MouseButton button, bool monitored)
 {
-	if (!manager || button < 0 || button >= MOUSE_BUTTON_COUNT)
-		return;
+    if (!manager || button < 0 || button >= MOUSE_BUTTON_COUNT)
+        return;
 
-	EnterCriticalSection(&manager->cs);
-	manager->buttons[button].isMonitored = monitored;
-	LeaveCriticalSection(&manager->cs);
+    EnterCriticalSection(&manager->cs);
+    manager->buttons[button].isMonitored = monitored;
+    LeaveCriticalSection(&manager->cs);
 }
 
-// Get total number of blocked events across all buttons
-// Parameters:
-//   manager - Pointer to DebounceManager structure
-// Returns:
-//   Total number of blocked events
 uint32_t debounce_get_total_blocks(DebounceManager *manager)
-
 {
+    if (!manager)
+        return 0;
 
-	if (!manager)
-
-		return 0;
-
-	EnterCriticalSection(&manager->cs);
-
-	uint32_t total = 0;
-
-	for (int i = 0; i < MOUSE_BUTTON_COUNT; i++)
-
-	{
-
-		total += manager->buttons[i].blocks;
-	}
-
-	LeaveCriticalSection(&manager->cs);
-
-	return total;
+    EnterCriticalSection(&manager->cs);
+    uint32_t total = 0;
+    for (int i = 0; i < MOUSE_BUTTON_COUNT; i++)
+        total += manager->buttons[i].blocks;
+    LeaveCriticalSection(&manager->cs);
+    return total;
 }
-
-// Get number of blocked events for a specific button
-
-// Parameters:
-
-//   manager - Pointer to DebounceManager structure
-
-//   button - Mouse button to get blocked count for
-
-// Returns:
-
-//   Number of blocked events for the specified button
 
 uint32_t debounce_get_button_blocks(DebounceManager *manager, MouseButton button)
-
 {
+    if (!manager || button < 0 || button >= MOUSE_BUTTON_COUNT)
+        return 0;
 
-	if (!manager || button < 0 || button >= MOUSE_BUTTON_COUNT)
-
-		return 0;
-
-	EnterCriticalSection(&manager->cs);
-
-	uint32_t blocks = manager->buttons[button].blocks;
-
-	LeaveCriticalSection(&manager->cs);
-
-	return blocks;
+    EnterCriticalSection(&manager->cs);
+    uint32_t blocks = manager->buttons[button].blocks;
+    LeaveCriticalSection(&manager->cs);
+    return blocks;
 }
-
-// Get human-readable name for a mouse button
-
-// Parameters:
-
-//   button - Mouse button to get name for
-
-// Returns:
-
-//   String representation of button name
 
 const char *debounce_get_button_name(MouseButton button)
 {
-	switch (button)
-	{
-	case MOUSE_BUTTON_LEFT:
-		return "Left";
-	case MOUSE_BUTTON_RIGHT:
-		return "Right";
-	case MOUSE_BUTTON_MIDDLE:
-		return "Middle";
-	case MOUSE_BUTTON_X1:
-		return "4th";
-	case MOUSE_BUTTON_X2:
-		return "5th";
-	case MOUSE_BUTTON_WHEEL:
-		return "Wheel";
-	default:
-		return "Unknown";
-	}
+    switch (button)
+    {
+    case MOUSE_BUTTON_LEFT:   return "Left";
+    case MOUSE_BUTTON_RIGHT:  return "Right";
+    case MOUSE_BUTTON_MIDDLE: return "Middle";
+    case MOUSE_BUTTON_X1:     return "4th";
+    case MOUSE_BUTTON_X2:     return "5th";
+    case MOUSE_BUTTON_WHEEL:  return "Wheel";
+    default:                  return "Unknown";
+    }
 }
 
-// Check if any button is currently being monitored
-// Parameters:
-//   manager - Pointer to DebounceManager structure
-// Returns:
-//   true if at least one button is monitored, false otherwise
 bool debounce_is_any_monitored(DebounceManager *manager)
 {
-	if (!manager)
-		return false;
+    if (!manager)
+        return false;
 
-	EnterCriticalSection(&manager->cs);
-
-	bool any_monitored = false;
-	for (int i = 0; i < MOUSE_BUTTON_COUNT; i++)
-	{
-		if (manager->buttons[i].isMonitored)
-		{
-			any_monitored = true;
-			break;
-		}
-	}
-
-	LeaveCriticalSection(&manager->cs);
-	return any_monitored;
+    EnterCriticalSection(&manager->cs);
+    bool any = false;
+    for (int i = 0; i < MOUSE_BUTTON_COUNT; i++)
+    {
+        if (manager->buttons[i].isMonitored)
+        {
+            any = true;
+            break;
+        }
+    }
+    LeaveCriticalSection(&manager->cs);
+    return any;
 }
 
-// Reset all statistics (blocked counts, blocked states, wheel directions)
-// Parameters:
-//   manager - Pointer to DebounceManager structure
 void debounce_reset_statistics(DebounceManager *manager)
 {
-	if (!manager)
-		return;
+    if (!manager)
+        return;
 
-	EnterCriticalSection(&manager->cs);
-
-	for (int i = 0; i < MOUSE_BUTTON_COUNT; i++)
-	{
-		manager->buttons[i].blocks = 0;
-		manager->buttons[i].isBlocked = false;
-		manager->buttons[i].isDeferringRelease = false;
-		manager->buttons[i].wheelDirection = 0;
-	}
-
-	LeaveCriticalSection(&manager->cs);
-}
-
-// Check for deferred releases and inject events if necessary
-void debounce_check_deferred_releases(DebounceManager *manager)
-{
-	if (!manager)
-		return;
-
-	// Use a temporary list to store actions to perform outside the critical section
-	struct
-	{
-		bool inject;
-		DWORD flags;
-		DWORD mouseData;
-	} actions[MOUSE_BUTTON_COUNT] = {0};
-
-	EnterCriticalSection(&manager->cs);
-	// Use GetTickCount64 to be consistent with event timestamps
-	uint64_t now = GetTickCount64();
-
-	for (int i = 0; i < MOUSE_BUTTON_COUNT; i++)
-	{
-		ButtonDebounceData *data = &manager->buttons[i];
-		if (data->isDeferringRelease)
-		{
-			// 50ms delay
-			if (now - data->deferStartTime > 50)
-			{
-				data->isDeferringRelease = false;
-				actions[i].inject = true;
-
-				switch (i)
-				{
-				case MOUSE_BUTTON_LEFT:
-					actions[i].flags = MOUSEEVENTF_LEFTUP;
-					break;
-				case MOUSE_BUTTON_RIGHT:
-					actions[i].flags = MOUSEEVENTF_RIGHTUP;
-					break;
-				case MOUSE_BUTTON_MIDDLE:
-					actions[i].flags = MOUSEEVENTF_MIDDLEUP;
-					break;
-				case MOUSE_BUTTON_X1:
-					actions[i].flags = MOUSEEVENTF_XUP;
-					actions[i].mouseData = XBUTTON1;
-					break;
-				case MOUSE_BUTTON_X2:
-					actions[i].flags = MOUSEEVENTF_XUP;
-					actions[i].mouseData = XBUTTON2;
-					break;
-				}
-			}
-		}
-	}
-	LeaveCriticalSection(&manager->cs);
-
-	// Perform injections
-	for (int i = 0; i < MOUSE_BUTTON_COUNT; i++)
-	{
-		if (actions[i].inject && actions[i].flags)
-		{
-			INPUT input = {0};
-			input.type = INPUT_MOUSE;
-			input.mi.dwFlags = actions[i].flags;
-			input.mi.mouseData = actions[i].mouseData;
-			SendInput(1, &input, sizeof(INPUT));
-		}
-	}
+    EnterCriticalSection(&manager->cs);
+    for (int i = 0; i < MOUSE_BUTTON_COUNT; i++)
+    {
+        manager->buttons[i].blocks = 0;
+        manager->buttons[i].state = BTN_STATE_IDLE;
+        manager->buttons[i].wheelDirection = 0;
+    }
+    LeaveCriticalSection(&manager->cs);
 }

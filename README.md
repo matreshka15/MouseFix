@@ -2,7 +2,7 @@
 
 <div align="center">
 
-![Version](https://img.shields.io/badge/version-1.0.3-blue.svg)
+![Version](https://img.shields.io/badge/version-1.0.4-blue.svg)
 ![Platform](https://img.shields.io/badge/platform-Windows-lightgrey.svg)
 ![License](https://img.shields.io/badge/license-MIT-green.svg)
 ![Size](https://img.shields.io/badge/size-120KB-orange.svg)
@@ -107,7 +107,7 @@ Customize via the system tray right-click menu.
 <a name="-download--下载"></a>
 ## 📥 Download / 下载
 
-> **Latest Release / 最新版本: v1.0.3**
+> **Latest Release / 最新版本: v1.0.4**
 
 | File | Description |
 | :--- | :--- |
