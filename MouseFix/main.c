@@ -540,6 +540,8 @@ static bool RegisterInvisibleClass(const HINSTANCE hInstance)
 	wc.cbSize = sizeof(WNDCLASSEX);
 	wc.lpfnWndProc = (WNDPROC)WindowProc;
 	wc.hInstance = hInstance;
+	wc.hIcon = LoadIcon(hInstance, MAKEINTRESOURCE(IDI_MAINICON));
+	wc.hIconSm = wc.hIcon;
 	wc.lpszClassName = L"MouseDebouncerWndClass";
 
 	return RegisterClassEx(&wc) != 0;
