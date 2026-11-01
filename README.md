@@ -28,4 +28,4 @@ Open `MouseFix/MouseFix.sln` in Visual Studio with the C++ desktop build tools, 
 
 ## License and credits
 
-MouseFix is licensed under the [MIT License](LICENSE), copyright © 2017 Marvin Lehmann. Original concept by [marvinlehmann](https://github.com/marvinlehmann), improved by [matreshka15](https://github.com/matreshka15). This repository is a fork of [matreshka15/MouseFix](https://github.com/matreshka15/MouseFix).
+MouseFix is licensed under the [MIT License](LICENSE), copyright © 2017 Marvin Lehmann. Original concept by [marvinlehmann](https://github.com/marvinlehmann), improved by [matreshka15](https://github.com/matreshka15).
