@@ -374,6 +374,7 @@ static bool InputBox(LPCWSTR prompt, LPWSTR buffer, int buffer_size)
 	WNDCLASSW wc = {0};
 	wc.lpfnWndProc = InputBoxProc;
 	wc.hInstance = hInstance;
+	wc.hIcon = LoadIcon(hInstance, MAKEINTRESOURCE(IDI_MAINICON));
 	wc.hCursor = LoadCursor(NULL, IDC_ARROW);
 	wc.hbrBackground = (HBRUSH)(COLOR_BTNFACE + 1);
 	wc.lpszClassName = INPUT_BOX_CLASS_NAME;
@@ -540,6 +541,8 @@ static bool RegisterInvisibleClass(const HINSTANCE hInstance)
 	wc.cbSize = sizeof(WNDCLASSEX);
 	wc.lpfnWndProc = (WNDPROC)WindowProc;
 	wc.hInstance = hInstance;
+	wc.hIcon = LoadIcon(hInstance, MAKEINTRESOURCE(IDI_MAINICON));
+	wc.hIconSm = wc.hIcon;
 	wc.lpszClassName = L"MouseDebouncerWndClass";
 
 	return RegisterClassEx(&wc) != 0;
