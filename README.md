@@ -20,11 +20,11 @@ Release binaries come from the original project and may differ from this checkou
 
 ### Start at login
 
-The repository includes `add_to_startup.ps1`, which can create a startup-folder shortcut or a current-user registry entry, and can remove those entries. Run it in PowerShell and follow its prompts. Its automatic search looks for `MouseFix.exe`; for an architecture-named executable, enter its full path when prompted and confirm the different filename. If it finds another `MouseFix.exe`, it uses that file automatically.
+The repository includes `add_to_startup.ps1`. Run it in PowerShell and choose option 1 to create a startup-folder shortcut; option 3 removes startup entries. Use the startup-folder option: the script's registry option does not quote executable paths and fails when the path contains spaces. Its automatic search looks for `MouseFix.exe`; for an architecture-named executable, enter its full path when prompted and confirm the different filename. If it finds another `MouseFix.exe`, it uses that file automatically.
 
 ## Build from source
 
-Open `MouseFix/MouseFix.sln` in Visual Studio with the C++ desktop build tools, the v143 toolset, and Windows SDK 10.0.22621.0 installed. Select Debug or Release and Win32 or x64, then build the solution. The project writes executables under `MouseFix/bin/x86/<configuration>/` or `MouseFix/bin/x64/<configuration>/`.
+Open `MouseFix/MouseFix.sln` in Visual Studio with the C++ desktop build tools, the v143 toolset, and Windows SDK 10.0.22621.0 installed. Select Debug or Release and x86 or x64, then build the solution. The solution's x86 platform maps to the project's Win32 configuration. The project writes executables under `MouseFix/bin/x86/<configuration>/` or `MouseFix/bin/x64/<configuration>/`.
 
 ## License and credits
 
