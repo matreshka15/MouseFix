@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MouseFix 隐私政策 / Privacy Policy</title>
+<meta name="description" content="MouseFix 不收集数据、不联网、不需要账号。MouseFix collects nothing, connects to nothing, and requires no account.">
+<style>
+  :root {
+    --bg: #ffffff;
+    --fg: #1c1c1e;
+    --muted: #5f6368;
+    --line: #e3e3e6;
+    --card: #f6f7f9;
+    --accent: #0b5cad;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #141416;
+      --fg: #ececef;
+      --muted: #a3a3aa;
+      --line: #2c2c31;
+      --card: #1d1d21;
+      --accent: #7db4f0;
+    }
+  }
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--fg);
+    font-family: "Segoe UI", -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
+    font-size: 16px;
+    line-height: 1.75;
+  }
+  main {
+    max-width: 760px;
+    margin: 0 auto;
+    padding: 48px 20px 80px;
+  }
+  header { margin-bottom: 36px; }
+  h1 {
+    font-size: 30px;
+    line-height: 1.25;
+    margin: 0 0 8px;
+    letter-spacing: -0.01em;
+  }
+  h2 {
+    font-size: 20px;
+    line-height: 1.35;
+    margin: 40px 0 12px;
+    padding-top: 8px;
+    border-top: 1px solid var(--line);
+  }
+  h3 {
+    font-size: 16px;
+    margin: 24px 0 8px;
+  }
+  p, li { margin: 0 0 12px; }
+  ul { padding-left: 22px; }
+  .meta { color: var(--muted); font-size: 14px; margin: 0; }
+  .lede {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 18px 20px;
+    margin: 24px 0 8px;
+  }
+  .lede p:last-child { margin-bottom: 0; }
+  .lang { font-size: 14px; margin-top: 16px; }
+  .lang a { margin-right: 14px; }
+  a { color: var(--accent); text-decoration: underline; text-underline-offset: 2px; }
+  a:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+  code {
+    font-family: Consolas, "SFMono-Regular", Menlo, monospace;
+    font-size: 0.92em;
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    padding: 1px 5px;
+  }
+  .en { margin-top: 72px; padding-top: 8px; }
+  .en h1 { font-size: 28px; }
+  footer {
+    margin-top: 56px;
+    padding-top: 20px;
+    border-top: 1px solid var(--line);
+    color: var(--muted);
+    font-size: 14px;
+  }
+  @media (max-width: 480px) {
+    main { padding: 32px 16px 64px; }
+    h1 { font-size: 25px; }
+    h2 { font-size: 18px; }
+  }
+</style>
+</head>
+<body>
+<main>
+
+<header>
+  <h1>MouseFix 隐私政策</h1>
+  <p class="meta">生效日期：2026 年 11 月 13 日 · 版本 1.1</p>
+  <p class="lang"><a href="#zh">中文</a><a href="#en">English</a></p>
+</header>
+
+<div class="lede">
+  <p><strong>三句话：</strong>MouseFix 不收集你的数据，不联网，不需要账号。</p>
+  <p>它会读鼠标按键的类型、时间和光标位置，只为了判断一次点击是不是抖动；读完就丢，不记录、不上传、不截屏。</p>
+  <p>设置存在你自己的电脑上：商店版卸载时由 Windows 删除，便携版需要手动删掉 <code>HKCU\Software\MouseFix</code>。</p>
+</div>
+
+<section id="zh">
+
+<h2>一、这份政策管什么</h2>
+<p>MouseFix（以下简称「本应用」）是运行在 Windows 上的托盘工具，用来过滤鼠标微动老化产生的误双击、滚轮反向和拖拽断触。本政策适用于 Microsoft Store 版本和便携版，两者功能相同。</p>
+<p>开发者：李东豫（Hank Li）。联系邮箱：<a href="mailto:matreshka999@icloud.com">matreshka999@icloud.com</a>。</p>
+
+<h2>二、不收集什么</h2>
+<p>本应用没有账号系统，没有登录，没有遥测、统计、崩溃上报，也没有广告 SDK 或任何第三方组件。具体来说：</p>
+<ul>
+  <li>不收集姓名、邮箱、电话、地址或任何身份信息。</li>
+  <li>不生成设备标识、安装标识或用户标识。</li>
+  <li>不记录你使用电脑的习惯、使用时长或应用清单。</li>
+  <li>不采集剪贴板、文件、屏幕内容或键盘输入。</li>
+  <li>不向任何服务器发送数据，包括开发者自己的服务器。</li>
+</ul>
+
+<h2>三、全局鼠标钩子读什么</h2>
+<p>过滤误点击必须在本应用里截获鼠标事件，这是本应用唯一的核心功能。它通过 Windows 公开的 <code>SetWindowsHookEx(WH_MOUSE_LL)</code> 接口读取以下字段：</p>
+<ul>
+  <li>按键类型：左键、右键、中键、侧键 1、侧键 2、滚轮。</li>
+  <li>事件类型：按下、松开、滚轮滚动方向。</li>
+  <li>事件时间戳。</li>
+  <li>光标在屏幕上的坐标。</li>
+  <li>该事件是否由其他程序模拟注入（用于跳过模拟输入，避免干扰自动化工具）。</li>
+</ul>
+<p>这些字段只在内存里参与一次判断：间隔是否短于阈值、滚轮是否在几十毫秒内反向、按住时间和移动距离是否构成拖拽。判断完立即丢弃，不写入磁盘，不形成历史记录，也不包含你点了界面上的哪个控件、点了什么内容、在哪个窗口里点。</p>
+<p>本应用只监听鼠标，不安装键盘钩子，不读取键盘输入。</p>
+<p>本应用不截屏，不读取窗口标题，不读取控件内容，不向其他进程注入代码。</p>
+
+<h2>四、拦下的事件和统计</h2>
+<p>托盘菜单顶部会显示「已经拦下多少事件」。这个数字只存在内存里，退出即清零，也可以手动点「清零统计」清零。它不包含事件内容，也不上传。</p>
+<p>拖拽保护会短暂压住一次松开事件（最多 150 毫秒），确认后面没有连续抖动后，再通过 Windows 的 <code>SendInput</code> 接口补发这次松开。补发的是你原本就按下并松开的那个按键，不包含额外信息。</p>
+
+<h2>五、设置存在哪里</h2>
+<p>设置只有三项：每个按键的阈值、每个按键是否启用、Smart Drag 是否开启。它们写在当前用户的注册表项：</p>
+<p><code>HKEY_CURRENT_USER\Software\MouseFix</code></p>
+<p>不包含任何个人信息。卸载方式不同，清理方式也不同：</p>
+<ul>
+  <li><strong>Microsoft Store 版：</strong>按 MSIX 的注册表虚拟化规则，这些写入由 Windows 保存在应用自己的容器里，卸载应用时一并删除。</li>
+  <li><strong>便携版：</strong>直接写入上述注册表项。删除 exe 不会清掉它，需要手动删除 <code>HKCU\Software\MouseFix</code>，或在注册表编辑器里删掉这一项。</li>
+</ul>
+<p>安装包还注册了一个开机启动项（MSIX 的 StartupTask），首次启动后默认开启，登录后过滤自动恢复。它不改动其他启动项；不想自启，在 Windows 的「任务管理器 → 启动」里关掉即可，设置不会丢。</p>
+
+<h2>六、网络</h2>
+<p>本应用不发起任何网络请求。没有检查更新（商店版由 Microsoft Store 负责更新），没有云同步，没有在线配置，没有埋点。断网和联网时功能完全一样。</p>
+
+<h2>七、儿童</h2>
+<p>本应用不收集任何人的数据，也不区分年龄，因此不涉及儿童个人信息的收集或使用。</p>
+
+<h2>八、你的权利</h2>
+<p>由于本应用不收集、不存储、不传输个人信息，开发者手上没有可供查询、导出或删除的个人数据。如果你想清掉本机上的设置，按第五节的方法删除注册表项即可。</p>
+
+<h2>九、政策变更</h2>
+<p>如果以后的版本新增了联网、数据收集或账号功能，这份政策会在功能上线前更新，并在应用更新说明里注明。生效日期以本页顶部为准。</p>
+
+<h2>十、联系</h2>
+<p>对本政策有疑问，或发现了与本政策不符的行为，请发邮件到 <a href="mailto:matreshka999@icloud.com">matreshka999@icloud.com</a>。</p>
+
+</section>
+
+<section id="en" class="en" lang="en">
+
+<header>
+  <h1>MouseFix Privacy Policy</h1>
+  <p class="meta">Effective 13 November 2026 · Version 1.1</p>
+</header>
+
+<div class="lede">
+  <p><strong>In three sentences:</strong> MouseFix collects nothing, connects to nothing, and requires no account.</p>
+  <p>It reads the mouse button type, event time and cursor position only to decide whether a click is a bounce. The data is used in memory and discarded. Nothing is logged, uploaded or screenshotted.</p>
+  <p>Settings stay on your PC: the Store version has them removed when you uninstall, while the portable build needs <code>HKCU\Software\MouseFix</code> deleted by hand.</p>
+</div>
+
+<h2>1. Scope</h2>
+<p>MouseFix (the "app") is a Windows tray utility that filters false double-clicks, wheel reversals and dropped drags caused by worn mouse switches. This policy covers both the Microsoft Store version and the portable build; they work the same way.</p>
+<p>Developer: Li Dongyu (Hank Li). Contact: <a href="mailto:matreshka999@icloud.com">matreshka999@icloud.com</a>.</p>
+
+<h2>2. What the app does not collect</h2>
+<p>There is no account system, no sign-in, no telemetry, no analytics, no crash reporting, no advertising SDK and no third-party component. Specifically, the app does not collect:</p>
+<ul>
+  <li>Names, email addresses, phone numbers, postal addresses or any other identifier.</li>
+  <li>Device, installation or user IDs.</li>
+  <li>Your habits, usage time or the list of apps you run.</li>
+  <li>Clipboard contents, files, screen contents or keyboard input.</li>
+  <li>Anything sent to any server, including the developer's own.</li>
+</ul>
+
+<h2>3. What the global mouse hook reads</h2>
+<p>Filtering false clicks requires intercepting mouse events inside the app — that is its only core function. It uses the documented Windows API <code>SetWindowsHookEx(WH_MOUSE_LL)</code> and reads these fields:</p>
+<ul>
+  <li>Button: left, right, middle, side 1, side 2, wheel.</li>
+  <li>Event type: press, release, wheel direction.</li>
+  <li>Event timestamp.</li>
+  <li>Cursor position on screen.</li>
+  <li>Whether the event was injected by another program (used to skip synthetic input so automation tools are not disturbed).</li>
+</ul>
+<p>These fields are used once, in memory, to decide whether the gap between presses is too short, whether the wheel reversed within a few dozen milliseconds, and whether hold time and pointer movement add up to a drag. Then they are discarded. Nothing is written to disk, no history is kept, and the app does not know which control you clicked or in which window.</p>
+<p>The app listens to the mouse only. It installs no keyboard hook and reads no keystrokes.</p>
+<p>It takes no screenshots, reads no window titles or control contents, and injects no code into other processes.</p>
+
+<h2>4. Blocked-event count</h2>
+<p>The tray menu shows how many events have been blocked. That number lives in memory, resets when the app exits, and can be cleared with "Reset Statistics". It contains no event data and is never uploaded.</p>
+<p>Drag protection briefly holds back a release event (at most 150 ms), confirms that no burst of bounces follows, then re-issues that release through the Windows <code>SendInput</code> API. It re-issues the button you actually pressed and released, and carries no additional information.</p>
+
+<h2>5. Where settings are stored</h2>
+<p>There are three settings: the threshold for each button, whether each button is enabled, and whether Smart Drag is on. They are written to the current user's registry key:</p>
+<p><code>HKEY_CURRENT_USER\Software\MouseFix</code></p>
+<p>No personal data is stored there. Cleanup depends on how the app was installed:</p>
+<ul>
+  <li><strong>Microsoft Store version:</strong> under MSIX registry virtualization, these writes are kept in the app's own container and removed by Windows when the app is uninstalled.</li>
+  <li><strong>Portable version:</strong> writes go directly to the key above. Deleting the exe does not remove it; delete <code>HKCU\Software\MouseFix</code> manually, for example in Registry Editor.</li>
+</ul>
+<p>The package also registers a startup task (MSIX StartupTask), enabled by default after the first launch so filtering resumes after you sign in. It changes no other startup entries. To turn it off, use Task Manager &gt; Startup; your settings are kept.</p>
+
+<h2>6. Network</h2>
+<p>The app makes no network requests. There are no update checks (the Store version is updated by Microsoft Store), no cloud sync, no remote configuration and no analytics. It works the same online and offline.</p>
+
+<h2>7. Children</h2>
+<p>The app collects no one's data and does not distinguish by age, so it does not collect or use children's personal information.</p>
+
+<h2>8. Your rights</h2>
+<p>Because the app does not collect, store or transmit personal information, the developer holds no personal data to access, export or delete. To clear settings on your machine, delete the registry key described in section 5.</p>
+
+<h2>9. Changes to this policy</h2>
+<p>If a future version adds networking, data collection or accounts, this policy will be updated before that feature ships and the change will be noted in the app's release notes. The effective date at the top of this page is authoritative.</p>
+
+<h2>10. Contact</h2>
+<p>Questions about this policy, or reports of behaviour that contradicts it: <a href="mailto:matreshka999@icloud.com">matreshka999@icloud.com</a>.</p>
+
+</section>
+
+<footer>
+  <p>MouseFix · © 2026 李东豫（Hank Li）· <a href="mailto:matreshka999@icloud.com">matreshka999@icloud.com</a></p>
+</footer>
+
+</main>
+</body>
+</html>
