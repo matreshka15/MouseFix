@@ -142,7 +142,7 @@
 
 <h2>四、拦下的事件和统计</h2>
 <p>托盘菜单顶部会显示「已经拦下多少事件」。这个数字只存在内存里，退出即清零，也可以手动点「清零统计」清零。它不包含事件内容，也不上传。</p>
-<p>拖拽保护会短暂压住一次松开事件（最多 150 毫秒），确认后面没有连续抖动后，再通过 Windows 的 <code>SendInput</code> 接口补发这次松开。补发的是你原本就按下并松开的那个按键，不包含额外信息。</p>
+<p>拖拽保护会短暂压住一次松开事件（约 50 毫秒），确认后面没有连续抖动后，再通过 Windows 的 <code>SendInput</code> 接口补发这次松开。补发的是你原本就按下并松开的那个按键，不包含额外信息。</p>
 
 <h2>五、设置存在哪里</h2>
 <p>设置只有三项：每个按键的阈值、每个按键是否启用、Smart Drag 是否开启。它们写在当前用户的注册表项：</p>
@@ -213,7 +213,7 @@
 
 <h2>4. Blocked-event count</h2>
 <p>The tray menu shows how many events have been blocked. That number lives in memory, resets when the app exits, and can be cleared with "Reset Statistics". It contains no event data and is never uploaded.</p>
-<p>Drag protection briefly holds back a release event (at most 150 ms), confirms that no burst of bounces follows, then re-issues that release through the Windows <code>SendInput</code> API. It re-issues the button you actually pressed and released, and carries no additional information.</p>
+<p>Drag protection briefly holds back a release event (about 50 ms), confirms that no burst of bounces follows, then re-issues that release through the Windows <code>SendInput</code> API. It re-issues the button you actually pressed and released, and carries no additional information.</p>
 
 <h2>5. Where settings are stored</h2>
 <p>There are three settings: the threshold for each button, whether each button is enabled, and whether Smart Drag is on. They are written to the current user's registry key:</p>
