@@ -1,8 +1,22 @@
 #include "tray_icon.h"
+#include "../../menu_ids.h"
 #include "../../resource.h"
 #include <shellapi.h>
 #include <strsafe.h>
 #include <commctrl.h>
+
+/* Load the icon on demand: remove/restore after an Explorer restart destroys
+   the old handle, and add must put a real icon back. */
+static bool tray_icon_ensure_icon(TrayIconManager *manager)
+{
+	if (!manager)
+		return false;
+
+	if (manager->notify_data.hIcon)
+		return true;
+
+	return SUCCEEDED(LoadIconMetric(manager->hInstance, MAKEINTRESOURCE(manager->icon_id), LIM_SMALL, &manager->notify_data.hIcon));
+}
 
 // Initialize tray icon manager
 bool tray_icon_init(TrayIconManager *manager, HWND hwnd, HINSTANCE hInstance, int icon_id)
@@ -11,6 +25,8 @@ bool tray_icon_init(TrayIconManager *manager, HWND hwnd, HINSTANCE hInstance, in
 		return false;
 
 	manager->hwnd = hwnd;
+	manager->hInstance = hInstance;
+	manager->icon_id = icon_id;
 	manager->added = false;
 
 	// Initialize NOTIFYICONDATA
@@ -22,8 +38,7 @@ bool tray_icon_init(TrayIconManager *manager, HWND hwnd, HINSTANCE hInstance, in
 	manager->notify_data.uCallbackMessage = WM_NOTIFYICON;
 	manager->notify_data.uVersion = NOTIFYICON_VERSION_4;
 
-	// Load icon
-	if (FAILED(LoadIconMetric(hInstance, MAKEINTRESOURCE(icon_id), LIM_SMALL, &manager->notify_data.hIcon)))
+	if (!tray_icon_ensure_icon(manager))
 	{
 		return false;
 	}
@@ -38,6 +53,9 @@ bool tray_icon_init(TrayIconManager *manager, HWND hwnd, HINSTANCE hInstance, in
 bool tray_icon_add(TrayIconManager *manager)
 {
 	if (!manager)
+		return false;
+
+	if (!tray_icon_ensure_icon(manager))
 		return false;
 
 	if (!Shell_NotifyIcon(NIM_ADD, &manager->notify_data))
@@ -109,8 +127,9 @@ bool tray_icon_show_balloon(TrayIconManager *manager, const wchar_t *title, cons
 		return false;
 
 	manager->notify_data.uFlags |= NIF_INFO;
-	StringCchCopy(manager->notify_data.szInfoTitle, sizeof(manager->notify_data.szInfoTitle), title);
-	StringCchCopy(manager->notify_data.szInfo, sizeof(manager->notify_data.szInfo), text);
+	// sizeof() here is bytes, not characters: a long string would overrun.
+	StringCchCopy(manager->notify_data.szInfoTitle, ARRAYSIZE(manager->notify_data.szInfoTitle), title);
+	StringCchCopy(manager->notify_data.szInfo, ARRAYSIZE(manager->notify_data.szInfo), text);
 	manager->notify_data.dwInfoFlags = info_flags;
 	manager->notify_data.uTimeout = timeout;
 
@@ -122,16 +141,4 @@ bool tray_icon_show_balloon(TrayIconManager *manager, const wchar_t *title, cons
 	}
 
 	return false;
-}
-
-// Handle taskbar recreated message
-void tray_icon_handle_taskbar_created(TrayIconManager *manager)
-{
-	if (!manager)
-		return;
-
-	if (manager->taskbar_created_msg)
-	{
-		tray_icon_restore(manager);
-	}
 }

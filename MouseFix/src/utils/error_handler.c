@@ -66,7 +66,7 @@ void error_handler_report(ErrorHandler *handler, ErrorCode code, const char *mes
 			}
 			else
 			{
-				strncpy(error->message, ERROR_MESSAGES[code], sizeof(error->message) - 1);
+				strncpy(error->message, error_handler_get_message(code), sizeof(error->message) - 1);
 				error->message[sizeof(error->message) - 1] = '\0';
 			}
 

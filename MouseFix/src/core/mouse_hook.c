@@ -7,8 +7,10 @@ static MouseHookManager *g_manager = NULL;
 // Low-level mouse hook callback
 static LRESULT CALLBACK LowLevelMouseProc(int nCode, WPARAM wParam, LPARAM lParam)
 {
-	// Read g_manager atomically to avoid race condition
-	MouseHookManager *manager = (MouseHookManager *)InterlockedExchangePointer((PVOID *)&g_manager, g_manager);
+	// The hook runs on the thread that installed it, and g_manager changes only
+	// before installing or after unhooking, so a plain read is enough here.
+	// (An interlocked read/write ran on every mouse move.)
+	MouseHookManager *manager = g_manager;
 
 	if (nCode == HC_ACTION && manager && manager->callback)
 	{
@@ -21,7 +23,7 @@ static LRESULT CALLBACK LowLevelMouseProc(int nCode, WPARAM wParam, LPARAM lPara
 			{
 				MouseEvent event;
 				event.button = button;
-				event.timestamp = GetTickCount64();
+				event.timestamp = time_manager_get_current_time(manager->time_manager);
 				event.data = 0;
 
 				// For wheel events, store delta in data field
@@ -35,13 +37,13 @@ static LRESULT CALLBACK LowLevelMouseProc(int nCode, WPARAM wParam, LPARAM lPara
 				event.y = pdata->pt.y;
 				event.is_injected = (pdata->flags & LLMHF_INJECTED) || (pdata->flags & LLMHF_LOWER_IL_INJECTED);
 
-				LRESULT result = g_manager->callback(&event, g_manager->user_data);
+				LRESULT result = manager->callback(&event, manager->user_data);
 				if (result != 0)
 					return result;
 			}
 		}
 	}
-	return CallNextHookEx(g_manager ? g_manager->hook : NULL, nCode, wParam, lParam);
+	return CallNextHookEx(manager ? manager->hook : NULL, nCode, wParam, lParam);
 }
 
 // Initialize mouse hook manager
@@ -53,6 +55,7 @@ bool mouse_hook_init(MouseHookManager *manager, MouseHookCallback callback, void
 	manager->hook = NULL;
 	manager->callback = callback;
 	manager->user_data = user_data;
+	manager->time_manager = NULL;
 	manager->installed = false;
 	g_manager = manager;
 

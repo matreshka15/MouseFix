@@ -4,10 +4,10 @@
 
 #define APP_VERSION_MAJOR 1
 #define APP_VERSION_MINOR 0
-#define APP_VERSION_PATCH 3
-#define APP_VERSION_STRING "1.0.3"
+#define APP_VERSION_PATCH 6
+#define APP_VERSION_STRING "1.0.6"
 #define APP_NAME "MouseFix"
-#define APP_AUTHOR "matreshka15"
+#define APP_AUTHOR "CodingTech"
 
 #define APSTUDIO_READONLY_SYMBOLS
 /////////////////////////////////////////////////////////////////////////////
@@ -50,9 +50,9 @@ BEGIN
             VALUE "CompanyName", APP_AUTHOR
             VALUE "FileDescription", APP_NAME
             VALUE "FileVersion", APP_VERSION_STRING ".0"
-            VALUE "InternalName", "MouseFix.exe"
-            VALUE "LegalCopyright", "Copyright (C) " APP_AUTHOR " 2025"
-            VALUE "OriginalFilename", "MouseFix.exe"
+            VALUE "InternalName", "MouseFix-x64.exe"
+            VALUE "LegalCopyright", "Copyright (C) 2026 Li Dongyu (Hank Li)"
+            VALUE "OriginalFilename", "MouseFix-x64.exe"
             VALUE "ProductName", APP_NAME
             VALUE "ProductVersion", APP_VERSION_STRING ".0"
         END

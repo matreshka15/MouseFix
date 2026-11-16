@@ -141,6 +141,7 @@
     <ClCompile Include="src\ui\context_menu.c" />
     <ClCompile Include="src\ui\tray_icon.c" />
     <ClCompile Include="src\utils\error_handler.c" />
+    <ClCompile Include="src\utils\localization.c" />
     <ClCompile Include="src\utils\logger.c" />
   </ItemGroup>
   <ItemGroup>
@@ -151,6 +152,7 @@
     <ClInclude Include="src\ui\context_menu.h" />
     <ClInclude Include="src\ui\tray_icon.h" />
     <ClInclude Include="src\utils\error_handler.h" />
+    <ClInclude Include="src\utils\localization.h" />
     <ClInclude Include="src\utils\logger.h" />
   </ItemGroup>
   <ItemGroup>

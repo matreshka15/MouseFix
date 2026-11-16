@@ -1,0 +1,54 @@
+#pragma once
+
+#include <wchar.h>
+
+/* UI strings. Language follows the Windows display language:
+   Simplified Chinese gets Chinese, everything else gets English. */
+typedef enum
+{
+    LOC_TOTAL_BLOCKED = 0,
+    LOC_ENABLE,
+    LOC_LEFT_FMT,
+    LOC_RIGHT_FMT,
+    LOC_MIDDLE_FMT,
+    LOC_X1_FMT,
+    LOC_X2_FMT,
+    LOC_WHEEL_FMT,
+    LOC_CUSTOM,
+    LOC_DISABLE_ALL,
+    LOC_ENABLE_ALL,
+    LOC_SMART_DRAG,
+    LOC_RESET_STATS,
+    LOC_PRESET_DEFAULT,
+    LOC_PRESET_OFFICE,
+    LOC_PRESET_STRICT,
+    LOC_PRESETS,
+    LOC_ABOUT,
+    LOC_EXIT,
+    LOC_SET_THRESHOLD,
+    LOC_ENTER_THRESHOLD_FMT,
+    LOC_OK,
+    LOC_CANCEL,
+    LOC_ALREADY_RUNNING,
+    LOC_ALREADY_RUNNING_TEXT,
+    LOC_ERR_HOOK,
+    LOC_ERR_INIT,
+    LOC_INVALID_THRESHOLD,
+    LOC_ERR_MUTEX,
+    LOC_ERR_CLASS,
+    LOC_ERR_WINDOW,
+    LOC_ERR_UNEXPECTED,
+    LOC_TOOLTIP,
+    LOC_FIRST_RUN_TITLE,
+    LOC_FIRST_RUN_TEXT,
+    LOC_BTN_LEFT,
+    LOC_BTN_RIGHT,
+    LOC_BTN_MIDDLE,
+    LOC_BTN_X1,
+    LOC_BTN_X2,
+    LOC_BTN_WHEEL,
+    LOC_COUNT
+} LocId;
+
+const wchar_t *loc_str(LocId id);
+const wchar_t *loc_button_name(int button);

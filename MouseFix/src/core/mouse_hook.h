@@ -3,6 +3,7 @@
 #include <windows.h>
 #include <stdbool.h>
 #include <stdint.h>
+#include "time_manager.h"
 
 // Mouse button types
 typedef enum
@@ -38,6 +39,7 @@ typedef struct
 	HHOOK hook;
 	MouseHookCallback callback;
 	void *user_data;
+	const TimeManager *time_manager;
 	bool installed;
 } MouseHookManager;
 

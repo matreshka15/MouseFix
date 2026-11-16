@@ -1,19 +1,17 @@
 #include "context_menu.h"
 #include "../../menu_ids.h"
 #include "../../version.h"
+#include "../utils/localization.h"
 #include <strsafe.h>
 
 // Constants
 #define STATISTICS_BUFFER_SIZE 128
 #define THRESHOLD_TEXT_BUFFER_SIZE 32
 #define BUTTON_MENU_TEXT_BUFFER_SIZE 64
-#define MENU_ID_BUTTON_MULTIPLIER 100
 
 // Button thresholds (3 presets matching global Presets + custom)
-static const int BUTTON_THRESHOLDS[] = {40, 50, 60};
-static const int WHEEL_THRESHOLDS[] = {20, 30, 35};
-static const int BUTTON_THRESHOLD_COUNT = 3;
-static const int WHEEL_THRESHOLD_COUNT = 3;
+const int BUTTON_THRESHOLDS[BUTTON_THRESHOLD_COUNT] = {40, 50, 60};
+const int WHEEL_THRESHOLDS[BUTTON_THRESHOLD_COUNT] = {20, 30, 35};
 
 // Button configuration
 static const MouseButton BUTTON_TYPES[] = {
@@ -35,14 +33,14 @@ static void AddThresholdMenuItems(HMENU hMenu, MouseButton button, const int *th
 {
 	for (int i = 0; i < threshold_count; i++)
 	{
-		UINT threshold_id = IDM_THRESHOLD_BASE + i;
 		wchar_t threshold_text[THRESHOLD_TEXT_BUFFER_SIZE];
 		StringCchPrintf(threshold_text, THRESHOLD_TEXT_BUFFER_SIZE, L"%dms", thresholds[i]);
 
 		UINT flags = MF_BYPOSITION | MF_STRING;
 		if (debounce->buttons[button].thresholdMs == thresholds[i])
 			flags |= MF_CHECKED;
-		InsertMenu(hMenu, -1, flags, threshold_id + button * MENU_ID_BUTTON_MULTIPLIER, threshold_text);
+		InsertMenu(hMenu, -1, flags,
+				   IDM_THRESHOLD_BASE + button * IDM_THRESHOLD_STRIDE + i, threshold_text);
 	}
 }
 
@@ -67,20 +65,7 @@ static void AddCustomThresholdOption(HMENU hMenu, MouseButton button, const int 
 	}
 	if (is_custom)
 		flags |= MF_CHECKED;
-	InsertMenu(hMenu, -1, flags, IDM_THRESHOLD_CUSTOM + button * MENU_ID_BUTTON_MULTIPLIER, L"Custom...");
-}
-
-// Initialize context menu manager
-bool context_menu_init(ContextMenuManager *manager, ContextMenuCallback callback, void *user_data)
-{
-	if (!manager)
-		return false;
-
-	manager->menu = NULL;
-	manager->callback = callback;
-	manager->user_data = user_data;
-
-	return true;
+	InsertMenu(hMenu, -1, flags, IDM_THRESHOLD_CUSTOM_BASE + button, loc_str(LOC_CUSTOM));
 }
 
 // Create and populate menu items
@@ -101,7 +86,7 @@ bool context_menu_create(ContextMenuManager *manager, DebounceManager *debounce)
 
 	// Add general statistics
 	bool is_enabled = debounce_is_any_monitored(debounce);
-	StringCchPrintf(buffer, STATISTICS_BUFFER_SIZE, L"Total Blocked: %I32u events", total_blocks);
+	StringCchPrintf(buffer, STATISTICS_BUFFER_SIZE, loc_str(LOC_TOTAL_BLOCKED), total_blocks);
 	InsertMenu(manager->menu, -1, MF_BYPOSITION | MF_STRING | MF_GRAYED, 0, buffer);
 
 	InsertMenu(manager->menu, -1, MF_BYPOSITION | MF_SEPARATOR, 0, NULL);
@@ -141,7 +126,7 @@ bool context_menu_create(ContextMenuManager *manager, DebounceManager *debounce)
 	AddThresholdMenuItems(hX2Menu, MOUSE_BUTTON_X2, BUTTON_THRESHOLDS, BUTTON_THRESHOLD_COUNT, debounce);
 
 	// Add threshold items for wheel
-	AddThresholdMenuItems(hWheelMenu, MOUSE_BUTTON_WHEEL, WHEEL_THRESHOLDS, WHEEL_THRESHOLD_COUNT, debounce);
+	AddThresholdMenuItems(hWheelMenu, MOUSE_BUTTON_WHEEL, WHEEL_THRESHOLDS, BUTTON_THRESHOLD_COUNT, debounce);
 
 	// Add custom threshold option for buttons
 	AddCustomThresholdOption(hLeftMenu, MOUSE_BUTTON_LEFT, BUTTON_THRESHOLDS, BUTTON_THRESHOLD_COUNT, debounce);
@@ -151,7 +136,7 @@ bool context_menu_create(ContextMenuManager *manager, DebounceManager *debounce)
 	AddCustomThresholdOption(hX2Menu, MOUSE_BUTTON_X2, BUTTON_THRESHOLDS, BUTTON_THRESHOLD_COUNT, debounce);
 
 	// Add custom threshold option for wheel
-	AddCustomThresholdOption(hWheelMenu, MOUSE_BUTTON_WHEEL, WHEEL_THRESHOLDS, WHEEL_THRESHOLD_COUNT, debounce);
+	AddCustomThresholdOption(hWheelMenu, MOUSE_BUTTON_WHEEL, WHEEL_THRESHOLDS, BUTTON_THRESHOLD_COUNT, debounce);
 
 	// Add toggle and separator to each submenu
 	InsertMenu(hLeftMenu, 0, MF_BYPOSITION | MF_SEPARATOR, 0, NULL);
@@ -168,51 +153,51 @@ bool context_menu_create(ContextMenuManager *manager, DebounceManager *debounce)
 	UINT x2_toggle_flags = MF_BYPOSITION | MF_STRING | (debounce->buttons[MOUSE_BUTTON_X2].isMonitored ? MF_CHECKED : 0);
 	UINT wheel_toggle_flags = MF_BYPOSITION | MF_STRING | (debounce->buttons[MOUSE_BUTTON_WHEEL].isMonitored ? MF_CHECKED : 0);
 
-	InsertMenu(hLeftMenu, 0, left_toggle_flags, IDM_TOGGLE_LEFT, L"Enable");
-	InsertMenu(hRightMenu, 0, right_toggle_flags, IDM_TOGGLE_RIGHT, L"Enable");
-	InsertMenu(hMiddleMenu, 0, middle_toggle_flags, IDM_TOGGLE_MIDDLE, L"Enable");
-	InsertMenu(hX1Menu, 0, x1_toggle_flags, IDM_TOGGLE_X1, L"Enable");
-	InsertMenu(hX2Menu, 0, x2_toggle_flags, IDM_TOGGLE_X2, L"Enable");
-	InsertMenu(hWheelMenu, 0, wheel_toggle_flags, IDM_TOGGLE_WHEEL, L"Enable");
+	InsertMenu(hLeftMenu, 0, left_toggle_flags, IDM_TOGGLE_LEFT, loc_str(LOC_ENABLE));
+	InsertMenu(hRightMenu, 0, right_toggle_flags, IDM_TOGGLE_RIGHT, loc_str(LOC_ENABLE));
+	InsertMenu(hMiddleMenu, 0, middle_toggle_flags, IDM_TOGGLE_MIDDLE, loc_str(LOC_ENABLE));
+	InsertMenu(hX1Menu, 0, x1_toggle_flags, IDM_TOGGLE_X1, loc_str(LOC_ENABLE));
+	InsertMenu(hX2Menu, 0, x2_toggle_flags, IDM_TOGGLE_X2, loc_str(LOC_ENABLE));
+	InsertMenu(hWheelMenu, 0, wheel_toggle_flags, IDM_TOGGLE_WHEEL, loc_str(LOC_ENABLE));
 
 	// Add button submenus to main menu with current threshold display and checkmark for enabled state
 	wchar_t left_text[64];
-	StringCchPrintf(left_text, 64, L"Left (%dms)", debounce->buttons[MOUSE_BUTTON_LEFT].thresholdMs);
+	StringCchPrintf(left_text, 64, loc_str(LOC_LEFT_FMT), debounce->buttons[MOUSE_BUTTON_LEFT].thresholdMs);
 	UINT left_menu_flags = MF_BYPOSITION | MF_POPUP;
 	if (debounce->buttons[MOUSE_BUTTON_LEFT].isMonitored)
 		left_menu_flags |= MF_CHECKED;
 	InsertMenu(manager->menu, -1, left_menu_flags, (UINT_PTR)hLeftMenu, left_text);
 
 	wchar_t right_text[64];
-	StringCchPrintf(right_text, 64, L"Right (%dms)", debounce->buttons[MOUSE_BUTTON_RIGHT].thresholdMs);
+	StringCchPrintf(right_text, 64, loc_str(LOC_RIGHT_FMT), debounce->buttons[MOUSE_BUTTON_RIGHT].thresholdMs);
 	UINT right_menu_flags = MF_BYPOSITION | MF_POPUP;
 	if (debounce->buttons[MOUSE_BUTTON_RIGHT].isMonitored)
 		right_menu_flags |= MF_CHECKED;
 	InsertMenu(manager->menu, -1, right_menu_flags, (UINT_PTR)hRightMenu, right_text);
 
 	wchar_t middle_text[64];
-	StringCchPrintf(middle_text, 64, L"Middle (%dms)", debounce->buttons[MOUSE_BUTTON_MIDDLE].thresholdMs);
+	StringCchPrintf(middle_text, 64, loc_str(LOC_MIDDLE_FMT), debounce->buttons[MOUSE_BUTTON_MIDDLE].thresholdMs);
 	UINT middle_menu_flags = MF_BYPOSITION | MF_POPUP;
 	if (debounce->buttons[MOUSE_BUTTON_MIDDLE].isMonitored)
 		middle_menu_flags |= MF_CHECKED;
 	InsertMenu(manager->menu, -1, middle_menu_flags, (UINT_PTR)hMiddleMenu, middle_text);
 
 	wchar_t x1_text[64];
-	StringCchPrintf(x1_text, 64, L"X1 (%dms)", debounce->buttons[MOUSE_BUTTON_X1].thresholdMs);
+	StringCchPrintf(x1_text, 64, loc_str(LOC_X1_FMT), debounce->buttons[MOUSE_BUTTON_X1].thresholdMs);
 	UINT x1_menu_flags = MF_BYPOSITION | MF_POPUP;
 	if (debounce->buttons[MOUSE_BUTTON_X1].isMonitored)
 		x1_menu_flags |= MF_CHECKED;
 	InsertMenu(manager->menu, -1, x1_menu_flags, (UINT_PTR)hX1Menu, x1_text);
 
 	wchar_t x2_text[64];
-	StringCchPrintf(x2_text, 64, L"X2 (%dms)", debounce->buttons[MOUSE_BUTTON_X2].thresholdMs);
+	StringCchPrintf(x2_text, 64, loc_str(LOC_X2_FMT), debounce->buttons[MOUSE_BUTTON_X2].thresholdMs);
 	UINT x2_menu_flags = MF_BYPOSITION | MF_POPUP;
 	if (debounce->buttons[MOUSE_BUTTON_X2].isMonitored)
 		x2_menu_flags |= MF_CHECKED;
 	InsertMenu(manager->menu, -1, x2_menu_flags, (UINT_PTR)hX2Menu, x2_text);
 
 	wchar_t wheel_text[64];
-	StringCchPrintf(wheel_text, 64, L"Wheel (%dms)", debounce->buttons[MOUSE_BUTTON_WHEEL].thresholdMs);
+	StringCchPrintf(wheel_text, 64, loc_str(LOC_WHEEL_FMT), debounce->buttons[MOUSE_BUTTON_WHEEL].thresholdMs);
 	UINT wheel_menu_flags = MF_BYPOSITION | MF_POPUP;
 	if (debounce->buttons[MOUSE_BUTTON_WHEEL].isMonitored)
 		wheel_menu_flags |= MF_CHECKED;
@@ -222,41 +207,54 @@ bool context_menu_create(ContextMenuManager *manager, DebounceManager *debounce)
 
 	// Add control section
 	InsertMenu(manager->menu, -1, MF_BYPOSITION | MF_STRING, IDM_TOGGLE_ENABLE,
-			   is_enabled ? L"Disable All" : L"Enable All");
+			   is_enabled ? loc_str(LOC_DISABLE_ALL) : loc_str(LOC_ENABLE_ALL));
 
 	UINT hybrid_flags = MF_BYPOSITION | MF_STRING;
 	if (debounce->use_hybrid_heuristic)
 		hybrid_flags |= MF_CHECKED;
-	// Use a simple, user-friendly name "Smart Drag Protection"
-	InsertMenu(manager->menu, -1, hybrid_flags, IDM_TOGGLE_HYBRID, L"Smart Drag Protection");
+	InsertMenu(manager->menu, -1, hybrid_flags, IDM_TOGGLE_HYBRID, loc_str(LOC_SMART_DRAG));
 
-	InsertMenu(manager->menu, -1, MF_BYPOSITION | MF_STRING, IDM_RESET_STATS, L"Reset Statistics");
+	InsertMenu(manager->menu, -1, MF_BYPOSITION | MF_STRING, IDM_RESET_STATS, loc_str(LOC_RESET_STATS));
 
 	InsertMenu(manager->menu, -1, MF_BYPOSITION | MF_SEPARATOR, 0, NULL);
 
-	// Add presets submenu
+	// Add presets submenu, marking the set that is currently in effect
 	HMENU hPresets = CreatePopupMenu();
-	InsertMenu(hPresets, -1, MF_BYPOSITION | MF_STRING, IDM_PRESET_DEFAULT, L"Default (50ms)");
-	InsertMenu(hPresets, -1, MF_BYPOSITION | MF_STRING, IDM_PRESET_OFFICE, L"Office Mode (60ms)");
-	InsertMenu(hPresets, -1, MF_BYPOSITION | MF_STRING, IDM_PRESET_STRICT, L"Strict Mode (40ms)");
-	InsertMenu(manager->menu, -1, MF_BYPOSITION | MF_POPUP, (UINT_PTR)hPresets, L"Presets");
+	const LocId preset_labels[DEBOUNCE_PRESET_COUNT] = {
+		LOC_PRESET_DEFAULT,
+		LOC_PRESET_OFFICE,
+		LOC_PRESET_STRICT,
+	};
+	const UINT preset_ids[DEBOUNCE_PRESET_COUNT] = {
+		IDM_PRESET_DEFAULT,
+		IDM_PRESET_OFFICE,
+		IDM_PRESET_STRICT,
+	};
+	for (int i = 0; i < DEBOUNCE_PRESET_COUNT; i++)
+	{
+		UINT preset_flags = MF_BYPOSITION | MF_STRING;
+		if (debounce_matches_preset(debounce, &DEBOUNCE_PRESETS[i]))
+			preset_flags |= MF_CHECKED;
+		InsertMenu(hPresets, -1, preset_flags, preset_ids[i], loc_str(preset_labels[i]));
+	}
+	InsertMenu(manager->menu, -1, MF_BYPOSITION | MF_POPUP, (UINT_PTR)hPresets, loc_str(LOC_PRESETS));
 
 	InsertMenu(manager->menu, -1, MF_BYPOSITION | MF_SEPARATOR, 0, NULL);
 
-	// Add About submenu
+	// Add About submenu. No outbound link: the Store build should not send
+	// users to the free repository, and the app itself stays offline.
 	HMENU hAbout = CreatePopupMenu();
-	InsertMenu(hAbout, -1, MF_BYPOSITION | MF_STRING, IDM_ABOUT_GITHUB, L"Website");
 
 	wchar_t version_text[64];
 	StringCchPrintf(version_text, 64, L"v%d.%d.%d", APP_VERSION_MAJOR, APP_VERSION_MINOR, APP_VERSION_PATCH);
 	InsertMenu(hAbout, -1, MF_BYPOSITION | MF_STRING | MF_GRAYED, IDM_ABOUT_VERSION, version_text);
 
-	InsertMenu(manager->menu, -1, MF_BYPOSITION | MF_POPUP, (UINT_PTR)hAbout, L"About");
+	InsertMenu(manager->menu, -1, MF_BYPOSITION | MF_POPUP, (UINT_PTR)hAbout, loc_str(LOC_ABOUT));
 
 	InsertMenu(manager->menu, -1, MF_BYPOSITION | MF_SEPARATOR, 0, NULL);
 
 	// Add exit
-	InsertMenu(manager->menu, -1, MF_BYPOSITION | MF_STRING, IDM_EXIT, L"Exit");
+	InsertMenu(manager->menu, -1, MF_BYPOSITION | MF_STRING, IDM_EXIT, loc_str(LOC_EXIT));
 
 	return true;
 }
@@ -272,18 +270,10 @@ bool context_menu_show(ContextMenuManager *manager, HWND hwnd, int x, int y, Deb
 
 	SetForegroundWindow(hwnd);
 	TrackPopupMenu(manager->menu, TPM_BOTTOMALIGN, x, y, 0, hwnd, NULL);
+	// Without this the menu can stay on screen after a click elsewhere.
+	PostMessage(hwnd, WM_NULL, 0, 0);
 
 	return true;
-}
-
-// Update menu with current statistics
-bool context_menu_update(ContextMenuManager *manager, DebounceManager *debounce)
-{
-	if (!manager || !debounce)
-		return false;
-
-	context_menu_destroy(manager);
-	return context_menu_create(manager, debounce);
 }
 
 // Destroy context menu
