@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>MouseFix 隐私政策 / Privacy Policy</title>
-<meta name="description" content="MouseFix 不收集数据、不联网、不需要账号。MouseFix collects nothing, connects to nothing, and requires no account.">
+<meta name="description" content="MouseFix 不收集数据、不需要账号；启动时只通过 Windows 商店接口查询一次许可证状态。MouseFix collects no data and requires no account; it checks the Store license once at startup through Windows.">
 <style>
   :root {
     --bg: #ffffff;
@@ -101,12 +101,12 @@
 
 <header>
   <h1>MouseFix 隐私政策</h1>
-  <p class="meta">生效日期：2026 年 11 月 13 日 · 版本 1.1</p>
+  <p class="meta">生效日期：2026 年 11 月 21 日 · 版本 1.2</p>
   <p class="lang"><a href="#zh">中文</a><a href="#en">English</a></p>
 </header>
 
 <div class="lede">
-  <p><strong>三句话：</strong>MouseFix 不收集你的数据，不联网，不需要账号。</p>
+  <p><strong>三句话：</strong>MouseFix 不收集你的数据，不直接联网，不需要账号。</p>
   <p>它会读鼠标按键的类型、时间和光标位置，只为了判断一次点击是不是抖动；读完就丢，不记录、不上传、不截屏。</p>
   <p>设置存在你自己的电脑上：商店版卸载时由 Windows 删除，便携版需要手动删掉 <code>HKCU\Software\MouseFix</code>。</p>
 </div>
@@ -115,7 +115,7 @@
 
 <h2>一、这份政策管什么</h2>
 <p>MouseFix（以下简称「本应用」）是运行在 Windows 上的托盘工具，用来过滤鼠标微动老化产生的误双击、滚轮反向和拖拽断触。本政策适用于 Microsoft Store 版本和便携版，两者功能相同。</p>
-<p>开发者：李东豫（Hank Li）。联系邮箱：<a href="mailto:matreshka999@icloud.com">matreshka999@icloud.com</a>。</p>
+<p>开发者：Hank Li。联系邮箱：<a href="mailto:matreshka999@icloud.com">matreshka999@icloud.com</a>。</p>
 
 <h2>二、不收集什么</h2>
 <p>本应用没有账号系统，没有登录，没有遥测、统计、崩溃上报，也没有广告 SDK 或任何第三方组件。具体来说：</p>
@@ -141,11 +141,11 @@
 <p>本应用不截屏，不读取窗口标题，不读取控件内容，不向其他进程注入代码。</p>
 
 <h2>四、拦下的事件和统计</h2>
-<p>托盘菜单顶部会显示「已经拦下多少事件」。这个数字只存在内存里，退出即清零，也可以手动点「清零统计」清零。它不包含事件内容，也不上传。</p>
-<p>拖拽保护会短暂压住一次松开事件（约 50 毫秒），确认后面没有连续抖动后，再通过 Windows 的 <code>SendInput</code> 接口补发这次松开。补发的是你原本就按下并松开的那个按键，不包含额外信息。</p>
+<p>托盘菜单顶部会显示「已经拦下多少事件」。这个数字只存在内存里，退出即清零，也可以手动点「清零统计」清零。它不包含事件内容，也不上传。另有一个累计拦截次数用于判断是否展示评分提示，写在当前用户的注册表里，同样不包含事件内容。</p>
+<p>拖拽保护会短暂压住一次松开事件（最多 150 毫秒），确认后面没有连续抖动后，再通过 Windows 的 <code>SendInput</code> 接口补发这次松开。补发的是你原本就按下并松开的那个按键，不包含额外信息。</p>
 
 <h2>五、设置存在哪里</h2>
-<p>设置只有三项：每个按键的阈值、每个按键是否启用、Smart Drag 是否开启。它们写在当前用户的注册表项：</p>
+<p>设置包括：每个按键的阈值、每个按键是否启用、每个按键的拖拽保护是否开启。它们写在当前用户的注册表项：</p>
 <p><code>HKEY_CURRENT_USER\Software\MouseFix</code></p>
 <p>不包含任何个人信息。卸载方式不同，清理方式也不同：</p>
 <ul>
@@ -155,7 +155,7 @@
 <p>安装包还注册了一个开机启动项（MSIX 的 StartupTask），首次启动后默认开启，登录后过滤自动恢复。它不改动其他启动项；不想自启，在 Windows 的「任务管理器 → 启动」里关掉即可，设置不会丢。</p>
 
 <h2>六、网络</h2>
-<p>本应用不发起任何网络请求。没有检查更新（商店版由 Microsoft Store 负责更新），没有云同步，没有在线配置，没有埋点。断网和联网时功能完全一样。</p>
+<p>本应用不直接发起网络请求。启动时会通过 Windows 商店接口查询一次许可证状态，这个查询由系统处理，可能访问网络，但不发送鼠标事件、按键内容或个人信息。没有检查更新（商店版由 Microsoft Store 负责更新），没有云同步，没有在线配置，没有埋点。断网和联网时过滤功能完全一样。</p>
 
 <h2>七、儿童</h2>
 <p>本应用不收集任何人的数据，也不区分年龄，因此不涉及儿童个人信息的收集或使用。</p>
@@ -175,7 +175,7 @@
 
 <header>
   <h1>MouseFix Privacy Policy</h1>
-  <p class="meta">Effective 13 November 2026 · Version 1.1</p>
+  <p class="meta">Effective 21 November 2026 · Version 1.2</p>
 </header>
 
 <div class="lede">
@@ -186,7 +186,7 @@
 
 <h2>1. Scope</h2>
 <p>MouseFix (the "app") is a Windows tray utility that filters false double-clicks, wheel reversals and dropped drags caused by worn mouse switches. This policy covers both the Microsoft Store version and the portable build; they work the same way.</p>
-<p>Developer: Li Dongyu (Hank Li). Contact: <a href="mailto:matreshka999@icloud.com">matreshka999@icloud.com</a>.</p>
+<p>Developer: Hank Li. Contact: <a href="mailto:matreshka999@icloud.com">matreshka999@icloud.com</a>.</p>
 
 <h2>2. What the app does not collect</h2>
 <p>There is no account system, no sign-in, no telemetry, no analytics, no crash reporting, no advertising SDK and no third-party component. Specifically, the app does not collect:</p>
@@ -212,11 +212,11 @@
 <p>It takes no screenshots, reads no window titles or control contents, and injects no code into other processes.</p>
 
 <h2>4. Blocked-event count</h2>
-<p>The tray menu shows how many events have been blocked. That number lives in memory, resets when the app exits, and can be cleared with "Reset Statistics". It contains no event data and is never uploaded.</p>
-<p>Drag protection briefly holds back a release event (about 50 ms), confirms that no burst of bounces follows, then re-issues that release through the Windows <code>SendInput</code> API. It re-issues the button you actually pressed and released, and carries no additional information.</p>
+<p>The tray menu shows how many events have been blocked. That number lives in memory, resets when the app exits, and can be cleared with "Reset Statistics". It contains no event data and is never uploaded. A separate cumulative blocked count, used only to decide when to show the review prompt, is stored in the current user's registry key; it also contains no event data.</p>
+<p>Drag protection briefly holds back a release event (at most 150 ms), confirms that no burst of bounces follows, then re-issues that release through the Windows <code>SendInput</code> API. It re-issues the button you actually pressed and released, and carries no additional information.</p>
 
 <h2>5. Where settings are stored</h2>
-<p>There are three settings: the threshold for each button, whether each button is enabled, and whether Smart Drag is on. They are written to the current user's registry key:</p>
+<p>The settings are: the threshold for each button, whether each button is enabled, and whether drag protection is on for each button. They are written to the current user's registry key:</p>
 <p><code>HKEY_CURRENT_USER\Software\MouseFix</code></p>
 <p>No personal data is stored there. Cleanup depends on how the app was installed:</p>
 <ul>
@@ -226,7 +226,7 @@
 <p>The package also registers a startup task (MSIX StartupTask), enabled by default after the first launch so filtering resumes after you sign in. It changes no other startup entries. To turn it off, use Task Manager &gt; Startup; your settings are kept.</p>
 
 <h2>6. Network</h2>
-<p>The app makes no network requests. There are no update checks (the Store version is updated by Microsoft Store), no cloud sync, no remote configuration and no analytics. It works the same online and offline.</p>
+<p>The app makes no direct network requests. At startup it asks the Windows Store API once for the license state; Windows handles that query and it may use the network, but it carries no mouse events, button data or personal information. There are no update checks (the Store version is updated by Microsoft Store), no cloud sync, no remote configuration and no analytics. Filtering works the same online and offline.</p>
 
 <h2>7. Children</h2>
 <p>The app collects no one's data and does not distinguish by age, so it does not collect or use children's personal information.</p>
@@ -243,7 +243,7 @@
 </section>
 
 <footer>
-  <p>MouseFix · © 2026 李东豫（Hank Li）· <a href="mailto:matreshka999@icloud.com">matreshka999@icloud.com</a></p>
+  <p>MouseFix · © 2026 Hank Li · <a href="mailto:matreshka999@icloud.com">matreshka999@icloud.com</a></p>
 </footer>
 
 </main>
