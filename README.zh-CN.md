@@ -1,105 +1,87 @@
-<h1 align="center">MouseFix</h1>
+# MouseFix
 
-<p align="center">
-  别急着换鼠标。多出来的那些点击，滤掉就行。<br>
-  Windows 10 及以上 · 64 位（x64 / ARM64） · MIT · 1 天试用，之后一次性买断
-</p>
+Windows 托盘小工具，处理鼠标微动老化后的误触：单击变双击、滚轮反向跳、拖拽半路松手。
 
-<p align="center">
-  <a href="https://apps.microsoft.com/detail/9PD5WFXK17TT">
-    <picture>
-      <source media="(prefers-color-scheme: dark)" srcset="assets/store-badge-zh-light.svg">
-      <img src="assets/store-badge-zh-dark.svg" alt="从微软商店获取 MouseFix" height="56">
-    </picture>
-  </a>
-</p>
+[![Microsoft Store](https://img.shields.io/badge/Microsoft_Store-去安装-0067B8?logo=microsoft&logoColor=white)](https://apps.microsoft.com/detail/9PD5WFXK17TT)
+[![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
+![Platform](https://img.shields.io/badge/platform-Windows%2010%20%7C%2011-lightgrey.svg)
 
-<p align="center"><a href="README.md">English →</a></p>
+[English →](README.md)
 
-<img src="assets/hero-zh.jpg" alt="MouseFix" width="100%">
-
-## 鼠标老化后的表现
-
-- 点一下文件名，结果直接进了重命名。
-
-- 往下滚网页，页面却往回窜一段。
-
-- 拖文件或选文字，拖到一半，按键自己松开了。
-
-鼠标还没坏，只是话变多了。微动开关或滚轮编码器的触点氧化后，按一次会抖出好几个信号，Windows 把每个信号都当了真。
-
-换一只新鼠标是最贵的解法。这个便宜：不用拆壳，不用动烙铁，你已经用顺手的这只继续干活。
-
-## MouseFix 管什么
-
-MouseFix 在 Windows 收到这些信号之前，把多出来的那几下拦下来。短时间窗内的重复信号丢掉，你的真实点击照常放行。
-
-它就安安静静待在托盘里，你接着忙自己的。
-
-## 它不管什么
-
-- 修硬件不是它的活；按下去完全没反应，或者连击停不下来，就得换微动。
-- DPI、加速度、按键映射和指针速度都照旧，MouseFix 不碰。
-- 其他软件生成的鼠标事件，直接放行。
+![MouseFix 托盘菜单](assets/hero.jpg)
 
 ## 安装
 
-想少折腾，就从[微软商店](https://apps.microsoft.com/detail/9PD5WFXK17TT)装。商店版有微软签名，装和卸都交给 Windows。它默认跟着 Windows 开机启动，不想这样的话，到「设置 > 应用 > 启动」里关掉。
+**[微软商店安装 MouseFix](https://apps.microsoft.com/detail/9PD5WFXK17TT)**，微软签名分发，装和卸都走 Windows，默认随系统启动，修复自动更新。有 1 天试用，之后一次性买断，各地价格以商店页为准。
 
-先试用 1 天，之后一次性买断。不是订阅，也不会自动续费。你所在地区的价格写在商店页。
+## 它解决什么毛病
 
-这里的源码一直跟着最新版走，当前是 1.0.9，更早的改动在 [CHANGELOG.md](CHANGELOG.md)。
+- **单击变双击。** 点一下文件名，直接进重命名；游戏里开一枪，出去两发。
+- **滚轮反向跳。** 明明往下滚，页面突然往上窜一段。
+- **拖拽中途断开。** 拖文件、选文字，拖到一半自己松手。
 
-<details>
-<summary>自己编一份</summary>
+原因多半在微动开关和滚轮编码器：触点磨损、氧化之后，按一次会抖出好几个通断信号，Windows 把这些信号都当成独立操作。换微动是最彻底的办法，但要拆鼠标、动烙铁。
 
-1. 用 Visual Studio 2022 打开 `MouseFix/MouseFix.sln`。
-2. 选 `Release`，可以编 `x64`、`x86` 或 `ARM64`；`build_release.bat` 一次编三个。
-3. 自编译没有签名，SmartScreen 可能提示未知发布者。
-4. 它也不会自动开机启动，把 `add_to_startup.ps1` 放到 exe 同目录，跑一次。
+MouseFix 挂一个低级鼠标钩子，把短时间窗内的重复信号丢掉，真实点击照常放行。
 
-设置存在 `HKCU\Software\MouseFix`。
+## 它不做什么
 
-</details>
+- **不修硬件。** 微动彻底坏了——按下去没反应，或者一直连击——只能换微动。MouseFix 处理的是「还能用，但抖得烦人」的情况。
+- **不改鼠标参数。** 不碰 DPI、加速度、按键映射，也不改指针速度。
+- **不拦截模拟点击。** 其他软件生成的鼠标事件直接放行。
 
-源码是 MIT 的，自己编当然可以，一分钱不用花。商店那份多给的是签名、自动更新，还有一个不用每次发版都重新编的安装包。
+## 界面
 
-商店版之后不再出新安装包。[Releases](https://github.com/matreshka15/MouseFix/releases) 里还留着 v1.0.4 的独立 exe，能正常用，就固定停在那个版本。
+托盘菜单里有总开关、六个按键各自的开关和阈值、预设、拦截计数。
 
-## 阈值和预设
+![托盘菜单](assets/menu-zh.jpg)
 
-| 预设 | 按键阈值 | 滚轮阈值 |
-| :--- | ---: | ---: |
-| 默认 | 50ms | 30ms |
-| 办公 | 60ms | 35ms |
-| 严格 | 40ms | 20ms |
+三档预设覆盖大部分情况；单个按键也能自己调，范围 1–200ms。
 
-每只鼠标抖起来的脾气都不太一样，左键、右键、中键、侧键 X1、侧键 X2 和滚轮都能单独调，范围 1–200ms。
+![预设](assets/presets-zh.jpg)
 
-Smart Drag 拖拽保护从 1.0.9 起也按按键单独开关，默认只开左键。
+## 预设
 
-<img src="assets/presets-zh.jpg" alt="MouseFix 阈值预设" width="100%">
+| 预设 | 按键阈值 | 滚轮阈值 | 适合 |
+| :--- | :---: | :---: | :--- |
+| 默认 | 50ms | 30ms | 日常使用 |
+| 办公 | 60ms | 35ms | 抖动比较严重 |
+| 严格 | 40ms | 20ms | 需要快速连点，比如游戏 |
 
-想滤得狠一点，就把阈值调大，只是故意的快速连点也可能被吃掉。想让快速连点更跟手，就调小一点，代价是漏进来的抖动会多一些。
+阈值是两次信号之间允许的最小间隔。调大，过滤更狠，真实的快速连点也可能被吃掉；调小，响应更快，漏掉的抖动会多一些。拿不准就先用默认，再给单个按键微调。
+
+## 1.0.9 修了什么
+
+- **触摸板点击不再被吞。** 触摸板在 up 之前可能先发第二个 down，旧状态机把它当成抖动，切到 BLOCKED 之后把真正的 up 丢了。现在重复 down 只吞那一个信号，按键保持按下，真实 up 正常放行。
+- **Smart Drag 改成按按键单独开关**，默认只开左键。右键可以只保留防抖、把 Smart Drag 关掉，issue #4 里 MouseInc 手势启动程序拿不到焦点的问题就是这么解决的。
+- 旧的全局 Smart Drag 设置按按键迁移（旧版开 → 只开左键，旧版关 → 全关），先写新值再删旧值。
+- 重复 down 不再重复计入拦截计数；Reset 统计不再把待发的 up 一起清掉。
+- 释放定时器不再被每个鼠标事件重置；版本号收口到一个头文件。
+
+## 源码和构建
+
+这里的代码始终跟最新版本同步，当前是 **1.0.9**，不存在比商店慢一版的情况。停掉的只是打包：不再放安装包，也不再发新的 Release。签名、更新、退款这些事在商店那边，仓库再做一遍只会多出一个版本真相。
+
+想自己编译，用 Visual Studio 2022 打开 `MouseFix/MouseFix.sln`，选 Release，x64、x86、ARM64 都能出；`build_release.bat` 一次编三个。自己编的 exe 没有签名，SmartScreen 可能提示「未知发布者」。设置存在 `HKCU\Software\MouseFix`；要开机自启，把 `add_to_startup.ps1` 和 exe 放同一目录运行。
 
 ## 不弹窗催你买
 
-MouseFix 不会拿购买窗口、倒计时或激活窗口打断你。试用到期后，过滤悄悄停下，只提示一次。
+没有购买弹窗，没有倒计时，也没有「立即激活」的窗口。试用到期之后过滤悄悄停下，提示一次，然后这件事就结束了。
 
-除了这次到期提示，它只会再问一次商店评价：拦满 200 次，或首次运行满一周时出现，之后就不来打扰你了。
+## 觉得好用的话
+
+买一杯咖啡就好。最省事的方式是在商店里买一份——同一份程序，签名和自动更新都齐，也是下一只用来试错的老鼠标的钱从哪来的。程序本身不依赖这个，不买也什么都不影响。
 
 ## 隐私
 
-MouseFix 不联网，不写日志，也不收集遥测，你的使用数据不会离开这台电脑。Release 编译里，日志模块整段不会进二进制。
+不联网、不写日志、不上传数据。钩子只读取按键类型、光标位置和滚轮方向，用来判断抖动；不记录你点了什么，也不记录键盘输入。细节见[隐私政策](https://matreshka15.github.io/MouseFix/)。
 
-钩子只看按键类型、光标位置和滚轮方向，不记录你点了什么，也不记录键盘输入。
+## 系统要求
 
-## 支持 MouseFix
+Windows 10 1809 或更高版本，64 位（x64 或 ARM64）。
 
-商店那份是付费版，也是这个项目能继续跑下去的原因：微软的抽成、我买回来复现 bug 的二手旧鼠标，都从这里出。要是它替你省下了一只鼠标，商店买一份就是最省事的道谢 ☕。不买也什么都不影响，源码一直开着。
+## 许可证与出处
 
-## 许可和问题反馈
+MIT License。原始项目由 [marvinlehmann](https://github.com/marvinlehmann) 编写，当前版本由 [matreshka15](https://github.com/matreshka15) 维护。
 
-MIT License。原作者 [marvinlehmann](https://github.com/marvinlehmann)，当前由 [matreshka15](https://github.com/matreshka15) 维护。
-
-遇到不对劲的地方，在 [Issues](https://github.com/matreshka15/MouseFix/issues) 告诉我。带上鼠标型号、Windows 版本和当时用的阈值，这三样齐了才复现得出来。
+问题、误报和兼容性反馈请提到 [Issues](https://github.com/matreshka15/MouseFix/issues)，或发邮件到 matreshka999@icloud.com。提问题时带上鼠标型号、Windows 版本和当时的阈值，这三样齐了才复现得出来。
