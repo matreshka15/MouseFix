@@ -45,6 +45,19 @@ static const wchar_t *const STRINGS_EN[LOC_COUNT] = {
     L"Side 1",
     L"Side 2",
     L"Wheel",
+    L"Filters double clicks, reversed wheel steps and dropped drags",
+    L"Runs fully offline. No network access, no data collected.",
+    L"Microsoft Store page",
+    L"© 2026 Hank Li",
+    L"Could not open the Microsoft Store page.",
+    L"Trial: %d days left",
+    L"Trial ended \u00b7 Buy full version",
+    L"MouseFix trial ended",
+    L"Your free trial has ended. Buy the full version to keep filtering mouse bounce.",
+    L"Enjoying MouseFix?",
+    L"Thanks for using MouseFix. Would you take a moment to rate it in the Store?",
+    L"Rate now",
+    L"Later",
 };
 
 static const wchar_t *const STRINGS_ZH[LOC_COUNT] = {
@@ -89,6 +102,19 @@ static const wchar_t *const STRINGS_ZH[LOC_COUNT] = {
     L"侧键 1",
     L"侧键 2",
     L"滚轮",
+    L"过滤鼠标老化后的连击、滚轮倒跳和误拖拽",
+    L"完全离线运行，不联网，不收集任何数据",
+    L"Microsoft Store 页面",
+    L"© 2026 Hank Li",
+    L"无法打开 Microsoft Store 页面。",
+    L"试用剩 %d 天",
+    L"试用已结束 · 购买完整版",
+    L"MouseFix 试用已结束",
+    L"免费试用已结束，购买完整版可继续过滤鼠标误触。",
+    L"喜欢 MouseFix 吗？",
+    L"感谢使用 MouseFix，方便的话去商店给个评价？",
+    L"去评价",
+    L"以后再说",
 };
 
 /* Compile-time check that both tables cover every LocId. */

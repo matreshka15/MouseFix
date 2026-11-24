@@ -1,13 +1,19 @@
 // Microsoft Visual C++ generated resource script.
 //
 #include "resource.h"
+#include "version_defs.h"
 
-#define APP_VERSION_MAJOR 1
-#define APP_VERSION_MINOR 0
-#define APP_VERSION_PATCH 6
-#define APP_VERSION_STRING "1.0.6"
-#define APP_NAME "MouseFix"
-#define APP_AUTHOR "CodingTech"
+/* The executable name differs by architecture; the version resource must
+   match the file that actually ships in each package. */
+#ifdef _M_ARM64
+#define MOUSEFIX_EXE_NAME "MouseFix-arm64.exe"
+#else
+#ifdef _M_IX86
+#define MOUSEFIX_EXE_NAME "MouseFix-x86.exe"
+#else
+#define MOUSEFIX_EXE_NAME "MouseFix-x64.exe"
+#endif
+#endif
 
 #define APSTUDIO_READONLY_SYMBOLS
 /////////////////////////////////////////////////////////////////////////////
@@ -50,9 +56,9 @@ BEGIN
             VALUE "CompanyName", APP_AUTHOR
             VALUE "FileDescription", APP_NAME
             VALUE "FileVersion", APP_VERSION_STRING ".0"
-            VALUE "InternalName", "MouseFix-x64.exe"
-            VALUE "LegalCopyright", "Copyright (C) 2026 Li Dongyu (Hank Li)"
-            VALUE "OriginalFilename", "MouseFix-x64.exe"
+            VALUE "InternalName", MOUSEFIX_EXE_NAME
+            VALUE "LegalCopyright", "Copyright (C) 2026 Hank Li"
+            VALUE "OriginalFilename", MOUSEFIX_EXE_NAME
             VALUE "ProductName", APP_NAME
             VALUE "ProductVersion", APP_VERSION_STRING ".0"
         END

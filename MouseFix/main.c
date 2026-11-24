@@ -11,6 +11,7 @@
 #include <stdint.h>
 #include <wchar.h>
 #include <stdlib.h>
+#include <time.h>
 #include <Strsafe.h>
 #include <stdio.h>
 #include "resource.h"
@@ -20,12 +21,14 @@
 // Include modular headers
 #include "src/core/mouse_hook.h"
 #include "src/core/debouncer.h"
+#include "src/core/settings_migration.h"
 #include "src/core/time_manager.h"
 #include "src/ui/tray_icon.h"
 #include "src/ui/context_menu.h"
 #include "src/utils/logger.h"
-#include "src/utils/error_handler.h"
 #include "src/utils/localization.h"
+#include "src/utils/store_license.h"
+#include "src/utils/review_prompt.h"
 
 // Global application state
 typedef struct
@@ -41,7 +44,6 @@ typedef struct
 	TrayIconManager tray_icon;
 	ContextMenuManager context_menu;
 	Logger logger;
-	ErrorHandler error_handler;
 
 	// First failure during setup, shown once the window cannot be created.
 	LocId init_error;
@@ -51,11 +53,22 @@ typedef struct
 	// retry adding the icon instead of exiting.
 	bool tray_retry_pending;
 	bool first_run_hint_pending;
+	bool release_timer_active;     // the 15ms release timer is running; do not reset it per event
 
 	// Set only when InitializeApp got all the way through. A failed setup
 	// still cleans up on WM_DESTROY but must not post WM_QUIT: wWinMain is
 	// about to show the reason.
 	bool initialized;
+
+	// Store license and review state, filled in asynchronously at startup.
+	StoreLicenseInfo license;
+	bool license_pending;
+	uint64_t cumulative_blocks;    // filtered clicks, survives "Reset Statistics"
+	uint64_t last_seen_blocks;     // debouncer total at the last sample
+	uint64_t first_run_unix_seconds; // 0 when never recorded
+	bool review_prompted;          // persisted, shown once ever
+	bool review_shown_this_run;    // guard against a double prompt in one run
+	bool trial_expired_notified;   // persisted, one balloon only
 } AppState;
 
 static AppState g_app = {0};
@@ -72,6 +85,10 @@ static AppState g_app = {0};
 #define THRESHOLD_MAX_VALUE 200
 #define REG_SETTINGS_KEY L"Software\\MouseFix"
 #define WINDOW_CLASS_NAME L"MouseDebouncerWndClass"
+#define STORE_PAGE_URL L"https://apps.microsoft.com/detail/9PD5WFXK17TT"
+#define TRIAL_PURCHASE_URL L"ms-windows-store://pdp/?ProductId=9PD5WFXK17TT"
+#define REVIEW_URL L"ms-windows-store://review/?ProductId=9PD5WFXK17TT"
+#define REVIEW_RECHECK_INTERVAL_MS 21600000 /* 6 hours */
 
 // Function declarations
 static LRESULT CALLBACK WindowProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam);
@@ -80,33 +97,53 @@ static bool RegisterInvisibleClass(const HINSTANCE hInstance);
 static bool InitializeApp(void);
 static void ShutdownApp(void);
 static void ShowContextMenu(const HWND hWnd, const int x, const int y);
+static void OpenStorePage(void);
 static void CDECL ShowErrorMessageBox(LPCWSTR message, ...);
 static void ToggleEnableAll(void);
 static void ToggleButton(MouseButton button);
 static void ToggleWheel(void);
-static void ToggleHybridHeuristic(void);
+static void ToggleSmartDrag(MouseButton button);
 static void ApplyPreset(const DebouncePreset *preset);
 static void SetButtonThreshold(MouseButton button, int threshold_ms);
 static bool InputBox(LPCWSTR prompt, LPWSTR buffer, int buffer_size, int initial_value, int min_value, int max_value);
 static void MaybeShowFirstRunHint(void);
 static void SaveSettings(void);
 static bool LoadSettings(void);
+static DWORD WINAPI LicenseQueryThread(LPVOID param);
+static void MaybeShowReviewPrompt(void);
+static bool ShowReviewPrompt(void);
+static void OpenReviewPage(void);
+static void OpenTrialPurchasePage(void);
+static void AccumulateCumulativeBlocks(void);
 
 // Mouse hook callback
 static LRESULT CALLBACK OnMouseHookCallback(const MouseEvent *event, void *user_data)
 {
 	AppState *app = (AppState *)user_data;
 
+	// Trial over and not purchased: filter nothing, pass every event through.
+	if (app->license.state == STORE_LICENSE_EXPIRED)
+		return 0;
+
 	// Process event directly - avoid creating intermediate structure
-	if (debounce_process_event(&app->debounce, event))
+	bool blocked = debounce_process_event(&app->debounce, event);
+
+	// A release may now be held back for confirmation; make sure the timer
+	// that flushes it is running. SetTimer with the same id restarts the
+	// countdown, so only arm it when it is not already running; otherwise a
+	// continuous stream of events could keep pushing the release back.
+	if (debounce_has_pending_releases(&app->debounce) && !app->release_timer_active)
 	{
-		// Event should be blocked
-		return 1;
+		if (SetTimer(app->hWnd, 1, 15, NULL))
+			app->release_timer_active = true;
 	}
 
-	// Zero means "let it through"; the hook procedure calls CallNextHookEx
+	if (blocked)
+		AccumulateCumulativeBlocks();
+
+	// Non-zero means "block it"; the hook procedure calls CallNextHookEx
 	// with the original arguments.
-	return 0;
+	return blocked ? 1 : 0;
 }
 
 // Initialize application
@@ -122,17 +159,6 @@ static bool InitializeApp(void)
 
 	LOG_INFO(&g_app.logger, "MouseFix starting...");
 #endif
-
-	// Initialize error handler
-	if (!error_handler_init(&g_app.error_handler))
-	{
-#ifndef NDEBUG
-		LOG_ERROR(&g_app.logger, "Failed to initialize error handler");
-#endif
-		g_app.init_error = LOC_ERR_INIT;
-		g_app.init_error_code = GetLastError();
-		return false;
-	}
 
 	// Initialize time manager
 	if (!time_manager_init(&g_app.time_manager))
@@ -158,6 +184,10 @@ static bool InitializeApp(void)
 
 	// Load saved settings; debounce_init filled in the defaults for any missing value.
 	bool first_run = !LoadSettings();
+
+	// Record the first run so the review prompt's 7-day trigger has a date.
+	if (g_app.first_run_unix_seconds == 0)
+		g_app.first_run_unix_seconds = (uint64_t)time(NULL);
 
 	// Initialize mouse hook
 	if (!mouse_hook_init(&g_app.mouse_hook, OnMouseHookCallback, &g_app))
@@ -217,12 +247,29 @@ static bool InitializeApp(void)
 	g_app.first_run_hint_pending = first_run;
 	MaybeShowFirstRunHint();
 
+	// Query the Store license on a worker thread; it posts back when done.
+	// Re-check the review trigger periodically so a 7-day session still fires.
+	g_app.license_pending = true;
+	HANDLE lic = CreateThread(NULL, 0, LicenseQueryThread, NULL, 0, NULL);
+	if (!lic)
+	{
+		// Thread failed: run as full version and still do the review check.
+		g_app.license_pending = false;
+		g_app.license.state = STORE_LICENSE_UNKNOWN;
+		g_app.license.days_remaining = 0;
+		PostMessage(g_app.hWnd, WM_MOUSEFIX_LICENSE, (WPARAM)g_app.license.state, (LPARAM)g_app.license.days_remaining);
+	}
+	else
+	{
+		CloseHandle(lic);
+	}
+	SetTimer(g_app.hWnd, 3, REVIEW_RECHECK_INTERVAL_MS, NULL);
+
 #ifndef NDEBUG
 	LOG_INFO(&g_app.logger, "Application initialized successfully");
 #endif
-	// Set timer for checking deferred releases (Hybrid Heuristic)
-	// Check every 15ms (approx 66Hz) to ensure timely release of dragged items
-	SetTimer(g_app.hWnd, 1, 15, NULL);
+	// The deferred-release timer is started on demand from the hook callback
+	// whenever a release is held back, and stopped once none are pending.
 	g_app.initialized = true;
 	return true;
 }
@@ -249,9 +296,16 @@ static void ShutdownApp(void)
 	LOG_INFO(&g_app.logger, "Shutting down application...");
 #endif
 
-	// Stop the hybrid heuristic timer and the tray retry timer
+	// Stop the deferred-release timer, the tray retry timer and the review re-check
 	KillTimer(g_app.hWnd, 1);
+	g_app.release_timer_active = false;
 	KillTimer(g_app.hWnd, 2);
+	KillTimer(g_app.hWnd, 3);
+
+	// Persist the cumulative block count and any review/trial flags. Only on a
+	// fully-initialized run: a failed setup must not clobber saved settings.
+	if (g_app.initialized)
+		SaveSettings();
 
 	// Release the popup menu, if one was built
 	context_menu_destroy(&g_app.context_menu);
@@ -262,27 +316,34 @@ static void ShutdownApp(void)
 	// Uninstall mouse hook
 	mouse_hook_uninstall(&g_app.mouse_hook);
 
+	// The hook is off, so any held-back release is now safe to send directly.
+	debounce_flush_pending_releases(&g_app.debounce);
+
 	// Cleanup modules
 	debounce_cleanup(&g_app.debounce);
 #ifndef NDEBUG
 	logger_cleanup(&g_app.logger);
 #endif
-	error_handler_cleanup(&g_app.error_handler);
 
 #ifndef NDEBUG
 	LOG_INFO(&g_app.logger, "Application shutdown complete");
 #endif
 }
 
-// Toggle enable/disable all buttons
-// Toggle hybrid heuristic
-static void ToggleHybridHeuristic(void)
+// Toggle Smart Drag for one button. It is per button because the right
+// button is often used for gestures, where holding the release back is
+// exactly the wrong thing to do.
+static void ToggleSmartDrag(MouseButton button)
 {
-	bool new_state = !g_app.debounce.use_hybrid_heuristic;
-	debounce_set_hybrid_heuristic(&g_app.debounce, new_state);
+	if (button < 0 || button >= MOUSE_BUTTON_COUNT)
+		return;
+
+	DebounceButtonConfig config = debounce_get_button_config(&g_app.debounce, button);
+	debounce_set_smart_drag(&g_app.debounce, button, !config.smart_drag_enabled);
 	SaveSettings();
 #ifndef NDEBUG
-	LOG_INFO(&g_app.logger, "Hybrid heuristic set to %s", new_state ? "Enabled" : "Disabled");
+	LOG_INFO(&g_app.logger, "%s Smart Drag %s", debounce_get_button_name(button),
+			 !config.smart_drag_enabled ? "enabled" : "disabled");
 #endif
 }
 
@@ -309,13 +370,13 @@ static void ToggleButton(MouseButton button)
 	if (button < 0 || button >= MOUSE_BUTTON_COUNT)
 		return;
 
-	bool current_state = g_app.debounce.buttons[button].isMonitored;
+	bool current_state = debounce_get_button_config(&g_app.debounce, button).monitored;
 	debounce_set_monitored(&g_app.debounce, button, !current_state);
 
 	SaveSettings();
 
 #ifndef NDEBUG
-	LOG_INFO(&g_app.logger, "%S button %s",
+	LOG_INFO(&g_app.logger, "%s button %s",
 			 debounce_get_button_name(button),
 			 !current_state ? "enabled" : "disabled");
 #endif
@@ -324,7 +385,7 @@ static void ToggleButton(MouseButton button)
 // Toggle wheel scrolling
 static void ToggleWheel(void)
 {
-	bool current_state = g_app.debounce.buttons[MOUSE_BUTTON_WHEEL].isMonitored;
+	bool current_state = debounce_get_button_config(&g_app.debounce, MOUSE_BUTTON_WHEEL).monitored;
 	debounce_set_monitored(&g_app.debounce, MOUSE_BUTTON_WHEEL, !current_state);
 
 	SaveSettings();
@@ -534,8 +595,20 @@ static bool InputBox(LPCWSTR prompt, LPWSTR buffer, int buffer_size, int initial
 
 	// Message loop
 	MSG msg;
-	while (IsWindow(hWnd) && GetMessage(&msg, NULL, 0, 0))
+	while (IsWindow(hWnd))
 	{
+		BOOL got = GetMessage(&msg, NULL, 0, 0);
+		if (got == 0)
+		{
+			// WM_QUIT arrived while this box was open (e.g. the user picked
+			// Exit from the tray). Re-post it so the outer wWinMain loop also
+			// sees it and the app exits instead of hanging.
+			PostQuitMessage((int)msg.wParam);
+			break;
+		}
+		if (got == -1)
+			break;
+
 		if (!IsDialogMessage(hWnd, &msg))
 		{
 			TranslateMessage(&msg);
@@ -554,23 +627,37 @@ static void SaveSettings(void)
 	HKEY hKey;
 	if (RegCreateKeyExW(HKEY_CURRENT_USER, REG_SETTINGS_KEY, 0, NULL, REG_OPTION_NON_VOLATILE, KEY_WRITE, NULL, &hKey, NULL) == ERROR_SUCCESS)
 	{
-		// Save hybrid heuristic setting
-		DWORD hybrid = g_app.debounce.use_hybrid_heuristic ? 1 : 0;
-		RegSetValueExW(hKey, L"HybridHeuristic", 0, REG_DWORD, (BYTE *)&hybrid, sizeof(DWORD));
-
 		for (int i = 0; i < MOUSE_BUTTON_COUNT; i++)
 		{
+			DebounceButtonConfig config = debounce_get_button_config(&g_app.debounce, (MouseButton)i);
 			wchar_t valName[64];
 			// Save threshold
 			StringCchPrintfW(valName, 64, L"Btn%d_Threshold", i);
-			DWORD threshold = (DWORD)g_app.debounce.buttons[i].thresholdMs;
+			DWORD threshold = (DWORD)config.threshold_ms;
 			RegSetValueExW(hKey, valName, 0, REG_DWORD, (BYTE *)&threshold, sizeof(DWORD));
 
 			// Save enabled state
 			StringCchPrintfW(valName, 64, L"Btn%d_Enabled", i);
-			DWORD enabled = g_app.debounce.buttons[i].isMonitored ? 1 : 0;
+			DWORD enabled = config.monitored ? 1 : 0;
 			RegSetValueExW(hKey, valName, 0, REG_DWORD, (BYTE *)&enabled, sizeof(DWORD));
+
+			// Save per-button Smart Drag
+			StringCchPrintfW(valName, 64, L"Btn%d_SmartDrag", i);
+			DWORD smart_drag = config.smart_drag_enabled ? 1 : 0;
+			RegSetValueExW(hKey, valName, 0, REG_DWORD, (BYTE *)&smart_drag, sizeof(DWORD));
 		}
+
+		// The old global switch has been replaced by the per-button values.
+		RegDeleteValueW(hKey, L"HybridHeuristic");
+
+		// Review / trial bookkeeping.
+		RegSetValueExW(hKey, L"CumulativeBlocks", 0, REG_QWORD, (BYTE *)&g_app.cumulative_blocks, sizeof(uint64_t));
+		RegSetValueExW(hKey, L"InstallTime", 0, REG_QWORD, (BYTE *)&g_app.first_run_unix_seconds, sizeof(uint64_t));
+		DWORD review = g_app.review_prompted ? 1 : 0;
+		RegSetValueExW(hKey, L"ReviewPrompted", 0, REG_DWORD, (BYTE *)&review, sizeof(DWORD));
+		DWORD trial_notified = g_app.trial_expired_notified ? 1 : 0;
+		RegSetValueExW(hKey, L"TrialExpiredNotified", 0, REG_DWORD, (BYTE *)&trial_notified, sizeof(DWORD));
+
 		RegCloseKey(hKey);
 	}
 }
@@ -584,11 +671,34 @@ static bool LoadSettings(void)
 	DWORD value;
 	DWORD size = sizeof(DWORD);
 
-	// Load hybrid heuristic setting
+	// Builds before 1.0.9 had one global Smart Drag switch. Read it once so
+	// existing installs keep their behavior, then replace it with per-button
+	// values below and delete the old value.
+	bool legacy_hybrid_present = false;
+	bool legacy_hybrid_enabled = false;
 	if (RegQueryValueExW(hKey, L"HybridHeuristic", NULL, NULL, (BYTE *)&value, &size) == ERROR_SUCCESS)
 	{
-		debounce_set_hybrid_heuristic(&g_app.debounce, value != 0);
+		legacy_hybrid_present = true;
+		legacy_hybrid_enabled = (value != 0);
 	}
+
+	// Load review / trial bookkeeping (missing values keep their zero default).
+	uint64_t qvalue;
+	DWORD qsize = sizeof(uint64_t);
+	if (RegQueryValueExW(hKey, L"CumulativeBlocks", NULL, NULL, (BYTE *)&qvalue, &qsize) == ERROR_SUCCESS)
+		g_app.cumulative_blocks = qvalue;
+
+	qsize = sizeof(uint64_t);
+	if (RegQueryValueExW(hKey, L"InstallTime", NULL, NULL, (BYTE *)&qvalue, &qsize) == ERROR_SUCCESS)
+		g_app.first_run_unix_seconds = qvalue;
+
+	size = sizeof(DWORD);
+	if (RegQueryValueExW(hKey, L"ReviewPrompted", NULL, NULL, (BYTE *)&value, &size) == ERROR_SUCCESS)
+		g_app.review_prompted = (value != 0);
+
+	size = sizeof(DWORD);
+	if (RegQueryValueExW(hKey, L"TrialExpiredNotified", NULL, NULL, (BYTE *)&value, &size) == ERROR_SUCCESS)
+		g_app.trial_expired_notified = (value != 0);
 
 	for (int i = 0; i < MOUSE_BUTTON_COUNT; i++)
 	{
@@ -609,8 +719,22 @@ static bool LoadSettings(void)
 		{
 			debounce_set_monitored(&g_app.debounce, i, value != 0);
 		}
+
+		// Load per-button Smart Drag, or migrate the old global switch.
+		// The old build only ever enabled Smart Drag for the left button.
+		size = sizeof(DWORD);
+		StringCchPrintfW(valName, 64, L"Btn%d_SmartDrag", i);
+		bool has_per_button = RegQueryValueExW(hKey, valName, NULL, NULL, (BYTE *)&value, &size) == ERROR_SUCCESS;
+		debounce_set_smart_drag(&g_app.debounce, i,
+			settings_resolve_smart_drag(has_per_button, has_per_button && value != 0,
+										legacy_hybrid_present, legacy_hybrid_enabled,
+										i == MOUSE_BUTTON_LEFT));
 	}
 
+	// The legacy value stays until SaveSettings has written the per-button
+	// values and deleted it. If the process dies before that, the next start
+	// still finds the old value and migrates again instead of silently
+	// falling back to the fresh-install defaults.
 	RegCloseKey(hKey);
 	return true;
 }
@@ -626,7 +750,7 @@ static void SetButtonThreshold(MouseButton button, int threshold_ms)
 	SaveSettings();
 
 #ifndef NDEBUG
-	LOG_INFO(&g_app.logger, "%S threshold set to %dms",
+	LOG_INFO(&g_app.logger, "%s threshold set to %dms",
 			 debounce_get_button_name(button),
 			 threshold_ms);
 #endif
@@ -660,6 +784,13 @@ static LRESULT CALLBACK WindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM l
 		if (wParam == 1)
 		{
 			debounce_check_deferred_releases(&g_app.debounce);
+			// Stop the timer once nothing is held back, so the app does not
+			// keep waking every 15ms when there is no pending release.
+			if (!debounce_has_pending_releases(&g_app.debounce))
+			{
+				KillTimer(hWnd, 1);
+				g_app.release_timer_active = false;
+			}
 		}
 		else if (wParam == 2 && g_app.tray_retry_pending)
 		{
@@ -670,6 +801,11 @@ static LRESULT CALLBACK WindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM l
 				tray_icon_set_tooltip(&g_app.tray_icon, loc_str(LOC_TOOLTIP));
 				MaybeShowFirstRunHint();
 			}
+		}
+		else if (wParam == 3)
+		{
+			// Periodic review re-check so a 7-day session still fires.
+			MaybeShowReviewPrompt();
 		}
 		return 0;
 
@@ -695,7 +831,50 @@ static LRESULT CALLBACK WindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM l
 							   NIIF_INFO, 5000);
 		return 0;
 
+	case WM_MOUSEFIX_LICENSE:
+		{
+			g_app.license.state = (StoreLicenseState)wParam;
+			g_app.license.days_remaining = (int)lParam;
+			g_app.license_pending = false;
+
+			if (g_app.license.state == STORE_LICENSE_EXPIRED)
+			{
+				if (!g_app.trial_expired_notified)
+				{
+					tray_icon_show_balloon(&g_app.tray_icon,
+										   loc_str(LOC_TRIAL_EXPIRED_TITLE),
+										   loc_str(LOC_TRIAL_EXPIRED_TEXT),
+										   NIIF_WARNING, 8000);
+					g_app.trial_expired_notified = true;
+					SaveSettings();
+				}
+			}
+			else
+			{
+				if (g_app.license.state == STORE_LICENSE_UNKNOWN)
+					OutputDebugStringW(L"MouseFix: Store license unavailable, running as full version.\n");
+				// Full, trial, or unknown all keep filtering; check the review
+				// trigger now that the trial state is known.
+				MaybeShowReviewPrompt();
+			}
+		}
+		return 0;
+
+	case WM_MOUSEFIX_REVIEW:
+		MaybeShowReviewPrompt();
+		return 0;
+
 	case WM_COMMAND:
+		if (LOWORD(wParam) == IDM_ABOUT_OPEN_STORE)
+		{
+			OpenStorePage();
+			return 0;
+		}
+		if (LOWORD(wParam) == IDM_TRIAL_BUY)
+		{
+			OpenTrialPurchasePage();
+			return 0;
+		}
 		if (LOWORD(wParam) == IDM_EXIT)
 		{
 			PostMessage(hWnd, WM_CLOSE, 0, 0);
@@ -706,14 +885,18 @@ static LRESULT CALLBACK WindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM l
 			ToggleEnableAll();
 			return 0;
 		}
-		if (LOWORD(wParam) == IDM_TOGGLE_HYBRID)
+		if (LOWORD(wParam) >= IDM_SMART_DRAG_BASE &&
+			LOWORD(wParam) < IDM_SMART_DRAG_BASE + MOUSE_BUTTON_WHEEL)
 		{
-			ToggleHybridHeuristic();
+			ToggleSmartDrag((MouseButton)(LOWORD(wParam) - IDM_SMART_DRAG_BASE));
 			return 0;
 		}
 		if (LOWORD(wParam) == IDM_RESET_STATS)
 		{
 			debounce_reset_statistics(&g_app.debounce);
+			// The debouncer's counters start again at zero. Drop the sampling
+			// baseline too, or the first blocks after a reset are lost.
+			g_app.last_seen_blocks = 0;
 #ifndef NDEBUG
 			LOG_INFO(&g_app.logger, "Statistics reset");
 #endif
@@ -796,9 +979,10 @@ static LRESULT CALLBACK WindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM l
 				StringCchPrintf(prompt, INPUT_BOX_PROMPT_BUFFER_SIZE, loc_str(LOC_ENTER_THRESHOLD_FMT),
 								loc_button_name(button_id), THRESHOLD_MIN_VALUE, THRESHOLD_MAX_VALUE);
 
+				DebounceButtonConfig config = debounce_get_button_config(&g_app.debounce, (MouseButton)button_id);
 				if (InputBox(prompt, input, _countof(input),
-							 (int)g_app.debounce.buttons[button_id].thresholdMs,
-							 THRESHOLD_MIN_VALUE, THRESHOLD_MAX_VALUE))
+						 (int)config.threshold_ms,
+						 THRESHOLD_MIN_VALUE, THRESHOLD_MAX_VALUE))
 				{
 					SetButtonThreshold((MouseButton)button_id, _wtoi(input));
 				}
@@ -833,7 +1017,112 @@ static LRESULT CALLBACK WindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM l
 static void ShowContextMenu(const HWND hWnd, const int x, const int y)
 {
 	SetForegroundWindow(hWnd);
-	context_menu_show(&g_app.context_menu, hWnd, x, y, &g_app.debounce);
+	context_menu_show(&g_app.context_menu, hWnd, x, y, &g_app.debounce, &g_app.license);
+}
+
+// Open the Store listing. This is the only thing in the app that talks to
+// the outside, and it only happens when the person picks it from About.
+static void OpenStorePage(void)
+{
+	HINSTANCE result = ShellExecuteW(g_app.hWnd, L"open", STORE_PAGE_URL, NULL, NULL, SW_SHOWNORMAL);
+	if ((INT_PTR)result <= 32)
+		ShowErrorMessageBox(loc_str(LOC_STORE_OPEN_FAILED));
+}
+
+// Open the trial-purchase page (used when the trial has ended).
+static void OpenTrialPurchasePage(void)
+{
+	ShellExecuteW(g_app.hWnd, L"open", TRIAL_PURCHASE_URL, NULL, NULL, SW_SHOWNORMAL);
+}
+
+// Open the rate-and-review surface: the native Store dialog when available,
+// the review URL otherwise.
+static void OpenReviewPage(void)
+{
+	if (!store_license_request_rate_and_review())
+		ShellExecuteW(g_app.hWnd, L"open", REVIEW_URL, NULL, NULL, SW_SHOWNORMAL);
+}
+
+// Worker thread: read the Store license, then hand the result back to the
+// UI thread. The read may touch the network, so it never runs on the UI thread.
+static DWORD WINAPI LicenseQueryThread(LPVOID param)
+{
+	(void)param;
+	StoreLicenseInfo info;
+	store_license_query(&info);
+	PostMessage(g_app.hWnd, WM_MOUSEFIX_LICENSE, (WPARAM)info.state, (LPARAM)info.days_remaining);
+	return 0;
+}
+
+// A native dialog with two buttons: "rate now" and "later". Returns false if
+// the dialog could not be shown, so the caller can bail without persisting.
+static bool ShowReviewPrompt(void)
+{
+	TASKDIALOG_BUTTON buttons[2] = {
+		{ 1, loc_str(LOC_REVIEW_RATE) },
+		{ 2, loc_str(LOC_REVIEW_LATER) },
+	};
+
+	TASKDIALOGCONFIG cfg = {0};
+	cfg.cbSize = sizeof(cfg);
+	cfg.hwndParent = g_app.hWnd;
+	cfg.pszWindowTitle = L"MouseFix";
+	cfg.pszMainInstruction = loc_str(LOC_REVIEW_TITLE);
+	cfg.pszContent = loc_str(LOC_REVIEW_TEXT);
+	cfg.cButtons = 2;
+	cfg.pButtons = buttons;
+	cfg.nDefaultButton = 1;
+
+	int result = 0;
+	if (SUCCEEDED(TaskDialogIndirect(&cfg, &result, NULL, NULL)) && result == 1)
+		OpenReviewPage();
+
+	return true;
+}
+
+// Show the review prompt once the trigger holds, and remember that it was
+// shown. Never collides with the trial-ended prompt (that one wins).
+static void MaybeShowReviewPrompt(void)
+{
+	if (g_app.review_prompted || g_app.review_shown_this_run)
+		return;
+	if (g_app.license_pending)
+		return;
+	if (g_app.license.state == STORE_LICENSE_EXPIRED)
+		return;
+
+	ReviewDecisionInput in;
+	in.cumulative_blocks = g_app.cumulative_blocks;
+	in.first_run_unix_seconds = g_app.first_run_unix_seconds;
+	in.already_prompted = g_app.review_prompted;
+	in.now_unix_seconds = (uint64_t)time(NULL);
+
+	if (!review_should_prompt(&in))
+		return;
+
+	g_app.review_shown_this_run = true;
+	g_app.review_prompted = true;
+
+	if (ShowReviewPrompt())
+		SaveSettings();
+}
+
+// Fold each newly blocked event into the persisted cumulative count. A "Reset
+// Statistics" zeroes the debouncer's own counters but not this one, so the
+// review trigger keeps its history.
+static void AccumulateCumulativeBlocks(void)
+{
+	uint32_t total = debounce_get_total_blocks(&g_app.debounce);
+	if (total >= g_app.last_seen_blocks)
+		g_app.cumulative_blocks += (uint64_t)(total - g_app.last_seen_blocks);
+	g_app.last_seen_blocks = total;
+
+	if (!g_app.review_prompted && !g_app.license_pending &&
+		g_app.license.state != STORE_LICENSE_EXPIRED &&
+		g_app.cumulative_blocks >= REVIEW_BLOCK_THRESHOLD)
+	{
+		PostMessage(g_app.hWnd, WM_MOUSEFIX_REVIEW, 0, 0);
+	}
 }
 
 // Show error message box

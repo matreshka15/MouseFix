@@ -11,6 +11,10 @@
 #define LOG_MESSAGE_BUFFER_SIZE 1024
 #define LOG_LINE_BUFFER_SIZE 2048
 
+/* The whole module compiles only in Debug. In Release the LOG_* macros are
+   already no-ops, so shipping the functions would only add dead code. */
+#ifndef NDEBUG
+
 static const char *LOG_LEVEL_NAMES[] = {
 	"DEBUG",
 	"INFO",
@@ -185,3 +189,5 @@ bool logger_is_enabled(const Logger *logger, LogLevel check_level)
 
 	return check_level >= logger->level;
 }
+
+#endif /* !NDEBUG */

@@ -2,16 +2,27 @@
 #include <string.h>
 
 /*
- * Smart Drag - State machine based drag protection
+ * Per-button state machine: bounce filtering plus Smart Drag.
  *
- * State transitions:
- *   IDLE -> PRESSED -> DRAGGING -> CONFIRMING -> IDLE
- *                |                       ^
- *              BLOCKED -----------------+
- *                  (bounce down cancels confirm)
+ *   IDLE --down--> PRESSED --up (short, no move)--> IDLE
+ *     |               |
+ *     |               | up after >200 ms hold or >5 px move, Smart Drag on
+ *     |               v
+ *     |          CONFIRMING --150 ms--> IDLE (release injected)
+ *     |
+ *     | down within threshold after an up
+ *     v
+ *   BLOCKED --up--> IDLE
+ *
+ * A down that arrives while PRESSED is the same physical press reported
+ * again. Precision touchpads do this; it is swallowed, but the state stays
+ * PRESSED so the real up still reaches the application.
  */
 
 #define SMART_DRAG_HOLD_THRESHOLD_MS  200
+/* 1.0.4 shipped 150ms/5px. The 1.0.8 working tree had 50ms/12px. The 1.0.9
+   review put 150ms/5px back to match the public docs, but the right value
+   needs a real-device trace; see docs/mousefix-1.0.9-test-plan.md. */
 #define SMART_DRAG_DIST_THRESHOLD_SQ  25   /* 5px */
 #define SMART_DRAG_CONFIRM_TIMEOUT_MS 150
 
@@ -111,9 +122,32 @@ static bool get_button_down(MouseButton button, DWORD *flags, DWORD *mouse_data)
     }
 }
 
-/* Injection worker. SendInput is only ever called here, because calling it
-   from inside the low-level hook callback blocks the input queue and freezes
-   the mouse until the process dies. */
+/* Take a held-back release for one button. Called with manager->cs held.
+   Returns true when an INPUT was filled; the caller owns sending it. */
+static bool take_pending_release_locked(DebounceManager *manager, MouseButton button, INPUT *input)
+{
+    ButtonDebounceData *data = &manager->buttons[button];
+    if (data->state != BTN_STATE_CONFIRMING)
+        return false;
+
+    data->state = BTN_STATE_IDLE;
+    data->releaseWasDrag = false;
+
+    DWORD flags, mouse_data;
+    if (!get_button_up(button, &flags, &mouse_data))
+        return false;
+
+    memset(input, 0, sizeof(*input));
+    input->type = INPUT_MOUSE;
+    input->mi.dwFlags = flags;
+    input->mi.mouseData = mouse_data;
+    return true;
+}
+
+/* Injection worker. SendInput is only ever called here (or via the shutdown
+   flush, once the hook is off), because calling it from inside the low-level
+   hook callback blocks the input queue and freezes the mouse until the
+   process dies. */
 static DWORD WINAPI debounce_injection_thread(LPVOID param)
 {
     DebounceManager *manager = (DebounceManager *)param;
@@ -124,35 +158,81 @@ static DWORD WINAPI debounce_injection_thread(LPVOID param)
         if (manager->inject_stop)
             break;
 
-        INPUT batch[DEBOUNCE_INJECT_QUEUE_CAP];
+        DebounceInjectEntry batch[DEBOUNCE_INJECT_QUEUE_CAP];
         int count;
 
         EnterCriticalSection(&manager->inject_cs);
         count = manager->inject_count;
         if (count > 0)
-            memcpy(batch, manager->inject_queue, (size_t)count * sizeof(INPUT));
+            memcpy(batch, manager->inject_queue, (size_t)count * sizeof(DebounceInjectEntry));
         manager->inject_count = 0;
         LeaveCriticalSection(&manager->inject_cs);
 
         if (count > 0)
-            SendInput((UINT)count, batch, sizeof(INPUT));
+        {
+            INPUT inputs[DEBOUNCE_INJECT_QUEUE_CAP];
+            MouseButton buttons[DEBOUNCE_INJECT_QUEUE_CAP];
+            for (int i = 0; i < count; i++)
+            {
+                inputs[i] = batch[i].input;
+                buttons[i] = batch[i].button;
+            }
+            debounce_inject_events(manager, inputs, buttons, count);
+        }
     }
 
     return 0;
 }
 
-/* Queue injected events; one SendInput call per batch keeps their order. */
-static void debounce_enqueue_inputs(DebounceManager *manager, const INPUT *inputs, int count)
+/* Send one batch and, if the injection is refused (UIPI blocks a foreground
+   elevated window, or SendInput simply fails), reset the affected buttons to
+   IDLE. The OS never saw the events, so leaving a stale PRESSED or CONFIRMING
+   state behind would make the software disagree with reality. */
+void debounce_inject_events(DebounceManager *manager, const INPUT *inputs, const MouseButton *buttons, int count)
 {
-    if (!manager || count <= 0 || !manager->inject_thread)
+    if (!manager || !inputs || count <= 0)
+        return;
+
+    UINT sent = manager->send_input
+        ? manager->send_input((UINT)count, (LPINPUT)inputs, sizeof(INPUT))
+        : SendInput((UINT)count, (LPINPUT)inputs, sizeof(INPUT));
+
+    if (sent != (UINT)count)
+    {
+        EnterCriticalSection(&manager->cs);
+        for (int i = 0; i < count; i++)
+        {
+            if (buttons && buttons[i] >= 0 && buttons[i] < MOUSE_BUTTON_COUNT)
+            {
+                manager->buttons[buttons[i]].state = BTN_STATE_IDLE;
+                manager->buttons[buttons[i]].releaseWasDrag = false;
+            }
+        }
+        LeaveCriticalSection(&manager->cs);
+    }
+}
+
+/* Queue injected events; one SendInput call per batch keeps their order. */
+static void debounce_enqueue_inputs(DebounceManager *manager, const INPUT *inputs, const MouseButton *buttons, int count)
+{
+    if (!manager || count <= 0)
+        return;
+
+    /* The unit tests have no worker thread; they read the queue directly. */
+    if (!manager->inject_thread && !MOUSEFIX_TESTING)
         return;
 
     EnterCriticalSection(&manager->inject_cs);
     for (int i = 0; i < count && manager->inject_count < DEBOUNCE_INJECT_QUEUE_CAP; i++)
-        manager->inject_queue[manager->inject_count++] = inputs[i];
+    {
+        manager->inject_queue[manager->inject_count].input = inputs[i];
+        manager->inject_queue[manager->inject_count].button = buttons ? buttons[i] : MOUSE_BUTTON_UNKNOWN;
+        manager->inject_count++;
+    }
     LeaveCriticalSection(&manager->inject_cs);
 
-    SetEvent(manager->inject_event);
+    if (manager->inject_event)
+        SetEvent(manager->inject_event);
 }
 
 bool debounce_init(DebounceManager *manager)
@@ -161,13 +241,15 @@ bool debounce_init(DebounceManager *manager)
         return false;
 
     memset(manager, 0, sizeof(DebounceManager));
-    manager->use_hybrid_heuristic = true;
+    manager->send_input = SendInput;
 
-    /* Fresh-install default state: every button monitored, default thresholds. */
+    /* Fresh-install default state: every button monitored, default thresholds,
+       and drag protection on for the left button only. */
     for (int i = 0; i < MOUSE_BUTTON_COUNT; i++)
     {
         manager->buttons[i].thresholdMs = default_thresholds[i];
         manager->buttons[i].isMonitored = true;
+        manager->buttons[i].smartDragEnabled = (i == MOUSE_BUTTON_LEFT);
     }
 
     LARGE_INTEGER freq;
@@ -177,11 +259,13 @@ bool debounce_init(DebounceManager *manager)
     InitializeCriticalSection(&manager->cs);
     manager->cs_ready = true;
 
+    /* The queue lock is initialized in both builds: the unit tests push to the
+       queue without running the worker thread. */
+    InitializeCriticalSection(&manager->inject_cs);
+    manager->inject_cs_ready = true;
+
     if (!MOUSEFIX_TESTING)
     {
-        InitializeCriticalSection(&manager->inject_cs);
-        manager->inject_cs_ready = true;
-
         manager->inject_event = CreateEventW(NULL, FALSE, FALSE, NULL);
         if (!manager->inject_event)
         {
@@ -205,11 +289,13 @@ void debounce_cleanup(DebounceManager *manager)
     if (!manager)
         return;
 
+    bool thread_stopped = true;
     if (manager->inject_thread)
     {
         InterlockedExchange(&manager->inject_stop, 1);
         SetEvent(manager->inject_event);
-        WaitForSingleObject(manager->inject_thread, 2000);
+        if (WaitForSingleObject(manager->inject_thread, 2000) != WAIT_OBJECT_0)
+            thread_stopped = false;
         CloseHandle(manager->inject_thread);
         manager->inject_thread = NULL;
     }
@@ -218,15 +304,22 @@ void debounce_cleanup(DebounceManager *manager)
         CloseHandle(manager->inject_event);
         manager->inject_event = NULL;
     }
-    if (manager->inject_cs_ready)
+
+    /* If the worker did not stop in time it may still be inside SendInput and
+       will touch these sections when it returns. Deleting them under it is a
+       use-after-free; leaving them in place (the process is exiting) is safe. */
+    if (thread_stopped)
     {
-        DeleteCriticalSection(&manager->inject_cs);
-        manager->inject_cs_ready = false;
-    }
-    if (manager->cs_ready)
-    {
-        DeleteCriticalSection(&manager->cs);
-        manager->cs_ready = false;
+        if (manager->inject_cs_ready)
+        {
+            DeleteCriticalSection(&manager->inject_cs);
+            manager->inject_cs_ready = false;
+        }
+        if (manager->cs_ready)
+        {
+            DeleteCriticalSection(&manager->cs);
+            manager->cs_ready = false;
+        }
     }
 }
 
@@ -290,8 +383,6 @@ bool debounce_process_event(DebounceManager *manager, const MouseEvent *event)
             switch (data->state)
             {
             case BTN_STATE_IDLE:
-            case BTN_STATE_PRESSED:
-            case BTN_STATE_DRAGGING:
                 if (timestamp_to_ms(elapsed) <= data->thresholdMs)
                 {
                     data->state = BTN_STATE_BLOCKED;
@@ -307,22 +398,43 @@ bool debounce_process_event(DebounceManager *manager, const MouseEvent *event)
                 }
                 break;
 
-            case BTN_STATE_CONFIRMING:
-                /* A new press arrived while the previous drag release is
-                   still held. Swallow this physical press and replay it as
-                   release + press, so the target sees a complete click and
-                   the drag ends in the same instant. Letting the physical
-                   press through instead would race the held release. */
-                data->state = BTN_STATE_PRESSED;
-                data->downTime = now;
-                data->downPoint.x = event->x;
-                data->downPoint.y = event->y;
+            case BTN_STATE_PRESSED:
+                /* A second down without an up in between is the same
+                   physical press reported twice. Swallow the duplicate but
+                   keep PRESSED so the real up still reaches the app. */
+                data->blocks++;
                 should_block = true;
-                replay_press = true;
+                break;
+
+            case BTN_STATE_CONFIRMING:
+                if (data->releaseWasDrag)
+                {
+                    /* A bounce press during a real drag: swallow this whole
+                       press and stay in the drag. Keep the original press
+                       point and time so the drag is not broken, and replay
+                       nothing. */
+                    data->state = BTN_STATE_PRESSED;
+                    should_block = true;
+                }
+                else
+                {
+                    /* A new press arrived while the previous (slow-click) drag
+                       release is still held. Swallow this physical press and
+                       replay it as release + press, so the target sees a
+                       complete click and the drag ends in the same instant. */
+                    data->state = BTN_STATE_PRESSED;
+                    data->downTime = now;
+                    data->downPoint.x = event->x;
+                    data->downPoint.y = event->y;
+                    should_block = true;
+                    replay_press = true;
+                }
                 break;
 
             case BTN_STATE_BLOCKED:
-                data->blocks++;
+                /* Another report of the press whose up has not arrived yet.
+                   The pair was already counted when it entered BLOCKED, so
+                   swallow this one without counting it a second time. */
                 should_block = true;
                 break;
             }
@@ -342,40 +454,31 @@ bool debounce_process_event(DebounceManager *manager, const MouseEvent *event)
                 break;
 
             case BTN_STATE_PRESSED:
-                if (manager->use_hybrid_heuristic)
+                if (data->smartDragEnabled)
                 {
                     uint64_t holdTime = now - data->downTime;
-                    long dx = event->x - data->downPoint.x;
-                    long dy = event->y - data->downPoint.y;
-                    long distSq = dx * dx + dy * dy;
+                    int64_t dx = (int64_t)event->x - data->downPoint.x;
+                    int64_t dy = (int64_t)event->y - data->downPoint.y;
+                    int64_t distSq = dx * dx + dy * dy;
 
-                    if (timestamp_to_ms(holdTime) > SMART_DRAG_HOLD_THRESHOLD_MS || distSq > SMART_DRAG_DIST_THRESHOLD_SQ)
+                    bool movedPastThreshold = distSq > SMART_DRAG_DIST_THRESHOLD_SQ;
+                    if (timestamp_to_ms(holdTime) > SMART_DRAG_HOLD_THRESHOLD_MS || movedPastThreshold)
                     {
                         data->state = BTN_STATE_CONFIRMING;
                         data->confirmStartTime = now;
+                        data->releaseWasDrag = movedPastThreshold;
                         should_block = true;
                     }
                     else
                     {
                         data->state = BTN_STATE_IDLE;
+                        data->releaseWasDrag = false;
                     }
                 }
                 else
                 {
                     data->state = BTN_STATE_IDLE;
-                }
-                break;
-
-            case BTN_STATE_DRAGGING:
-                if (manager->use_hybrid_heuristic)
-                {
-                    data->state = BTN_STATE_CONFIRMING;
-                    data->confirmStartTime = now;
-                    should_block = true;
-                }
-                else
-                {
-                    data->state = BTN_STATE_IDLE;
+                    data->releaseWasDrag = false;
                 }
                 break;
 
@@ -406,7 +509,8 @@ bool debounce_process_event(DebounceManager *manager, const MouseEvent *event)
             inputs[1].type = INPUT_MOUSE;
             inputs[1].mi.dwFlags = down_flags;
             inputs[1].mi.mouseData = down_data;
-            debounce_enqueue_inputs(manager, inputs, 2);
+            MouseButton buttons[2] = { event->button, event->button };
+            debounce_enqueue_inputs(manager, inputs, buttons, 2);
         }
     }
 
@@ -419,6 +523,7 @@ void debounce_check_deferred_releases(DebounceManager *manager)
         return;
 
     INPUT inputs[MOUSE_BUTTON_COUNT] = {0};
+    MouseButton buttons[MOUSE_BUTTON_COUNT];
     int count = 0;
 
     EnterCriticalSection(&manager->cs);
@@ -434,11 +539,13 @@ void debounce_check_deferred_releases(DebounceManager *manager)
             {
                 DWORD flags, mouse_data;
                 data->state = BTN_STATE_IDLE;
+                data->releaseWasDrag = false;
                 if (get_button_up((MouseButton)i, &flags, &mouse_data))
                 {
                     inputs[count].type = INPUT_MOUSE;
                     inputs[count].mi.dwFlags = flags;
                     inputs[count].mi.mouseData = mouse_data;
+                    buttons[count] = (MouseButton)i;
                     count++;
                 }
             }
@@ -446,7 +553,7 @@ void debounce_check_deferred_releases(DebounceManager *manager)
     }
     LeaveCriticalSection(&manager->cs);
 
-    debounce_enqueue_inputs(manager, inputs, count);
+    debounce_enqueue_inputs(manager, inputs, buttons, count);
 }
 
 void debounce_set_threshold(DebounceManager *manager, MouseButton button, uint32_t threshold_ms, uint32_t min_threshold_ms, uint32_t max_threshold_ms)
@@ -476,54 +583,56 @@ void debounce_apply_preset(DebounceManager *manager, const DebouncePreset *prese
     LeaveCriticalSection(&manager->cs);
 }
 
-bool debounce_matches_preset(const DebounceManager *manager, const DebouncePreset *preset)
+bool debounce_matches_preset(DebounceManager *manager, const DebouncePreset *preset)
 {
     if (!manager || !preset)
         return false;
 
-    return manager->buttons[MOUSE_BUTTON_LEFT].thresholdMs == preset->left &&
-           manager->buttons[MOUSE_BUTTON_RIGHT].thresholdMs == preset->right &&
-           manager->buttons[MOUSE_BUTTON_MIDDLE].thresholdMs == preset->middle &&
-           manager->buttons[MOUSE_BUTTON_X1].thresholdMs == preset->x1 &&
-           manager->buttons[MOUSE_BUTTON_X2].thresholdMs == preset->x2 &&
-           manager->buttons[MOUSE_BUTTON_WHEEL].thresholdMs == preset->wheel;
+    EnterCriticalSection(&manager->cs);
+    bool match = manager->buttons[MOUSE_BUTTON_LEFT].thresholdMs == preset->left &&
+                 manager->buttons[MOUSE_BUTTON_RIGHT].thresholdMs == preset->right &&
+                 manager->buttons[MOUSE_BUTTON_MIDDLE].thresholdMs == preset->middle &&
+                 manager->buttons[MOUSE_BUTTON_X1].thresholdMs == preset->x1 &&
+                 manager->buttons[MOUSE_BUTTON_X2].thresholdMs == preset->x2 &&
+                 manager->buttons[MOUSE_BUTTON_WHEEL].thresholdMs == preset->wheel;
+    LeaveCriticalSection(&manager->cs);
+    return match;
 }
 
-void debounce_set_hybrid_heuristic(DebounceManager *manager, bool use_hybrid)
+void debounce_set_smart_drag(DebounceManager *manager, MouseButton button, bool enabled)
 {
-    if (!manager)
+    if (!manager || button < 0 || button >= MOUSE_BUTTON_COUNT)
         return;
 
-    /* Turning Smart Drag off must not strand a release that was already held
-       back: the physical up was swallowed, so send it before dropping the
-       CONFIRMING state or the OS keeps seeing the button as pressed. */
-    INPUT releases[MOUSE_BUTTON_COUNT] = {0};
-    int release_count = 0;
+    INPUT release = {0};
+    bool have_release = false;
 
     EnterCriticalSection(&manager->cs);
-    manager->use_hybrid_heuristic = use_hybrid;
+    manager->buttons[button].smartDragEnabled = enabled;
 
-    if (!use_hybrid)
-    {
-        for (int i = 0; i < MOUSE_BUTTON_COUNT; i++)
-        {
-            if (manager->buttons[i].state == BTN_STATE_CONFIRMING)
-            {
-                DWORD flags, mouse_data;
-                manager->buttons[i].state = BTN_STATE_IDLE;
-                if (get_button_up((MouseButton)i, &flags, &mouse_data))
-                {
-                    releases[release_count].type = INPUT_MOUSE;
-                    releases[release_count].mi.dwFlags = flags;
-                    releases[release_count].mi.mouseData = mouse_data;
-                    release_count++;
-                }
-            }
-        }
-    }
+    /* Turning Smart Drag off must not strand a release that was already held
+       back: the physical up was swallowed, so send it or the OS keeps seeing
+       the button as pressed. */
+    if (!enabled)
+        have_release = take_pending_release_locked(manager, button, &release);
     LeaveCriticalSection(&manager->cs);
 
-    debounce_enqueue_inputs(manager, releases, release_count);
+    if (have_release)
+        debounce_enqueue_inputs(manager, &release, &button, 1);
+}
+
+DebounceButtonConfig debounce_get_button_config(DebounceManager *manager, MouseButton button)
+{
+    DebounceButtonConfig config = {0};
+    if (!manager || button < 0 || button >= MOUSE_BUTTON_COUNT)
+        return config;
+
+    EnterCriticalSection(&manager->cs);
+    config.threshold_ms = manager->buttons[button].thresholdMs;
+    config.monitored = manager->buttons[button].isMonitored;
+    config.smart_drag_enabled = manager->buttons[button].smartDragEnabled;
+    LeaveCriticalSection(&manager->cs);
+    return config;
 }
 
 void debounce_set_monitored(DebounceManager *manager, MouseButton button, bool monitored)
@@ -531,9 +640,71 @@ void debounce_set_monitored(DebounceManager *manager, MouseButton button, bool m
     if (!manager || button < 0 || button >= MOUSE_BUTTON_COUNT)
         return;
 
+    INPUT release = {0};
+    bool have_release = false;
+
     EnterCriticalSection(&manager->cs);
     manager->buttons[button].isMonitored = monitored;
+    if (!monitored)
+    {
+        /* Turning a button off must not strand a held-back release: the
+           physical up was swallowed, so send it before dropping the state or
+           the OS keeps seeing the button as pressed. */
+        have_release = take_pending_release_locked(manager, button, &release);
+        manager->buttons[button].state = BTN_STATE_IDLE;
+        manager->buttons[button].releaseWasDrag = false;
+        manager->buttons[button].wheelDirection = 0;
+    }
     LeaveCriticalSection(&manager->cs);
+
+    if (have_release)
+        debounce_enqueue_inputs(manager, &release, &button, 1);
+}
+
+
+bool debounce_has_pending_releases(DebounceManager *manager)
+{
+    if (!manager || !manager->cs_ready)
+        return false;
+
+    EnterCriticalSection(&manager->cs);
+    bool pending = false;
+    for (int i = 0; i < MOUSE_BUTTON_COUNT; i++)
+    {
+        if (manager->buttons[i].state == BTN_STATE_CONFIRMING)
+        {
+            pending = true;
+            break;
+        }
+    }
+    LeaveCriticalSection(&manager->cs);
+    return pending;
+}
+
+/* Flush every held-back release synchronously. Called at shutdown, after the
+   hook is uninstalled, so calling SendInput here is safe (we are not in the
+   hook callback). */
+void debounce_flush_pending_releases(DebounceManager *manager)
+{
+    if (!manager || !manager->cs_ready)
+        return;
+
+    INPUT inputs[MOUSE_BUTTON_COUNT] = {0};
+    MouseButton buttons[MOUSE_BUTTON_COUNT];
+    int count = 0;
+
+    EnterCriticalSection(&manager->cs);
+    for (int i = 0; i < MOUSE_BUTTON_COUNT; i++)
+    {
+        if (take_pending_release_locked(manager, (MouseButton)i, &inputs[count]))
+        {
+            buttons[count] = (MouseButton)i;
+            count++;
+        }
+    }
+    LeaveCriticalSection(&manager->cs);
+
+    debounce_inject_events(manager, inputs, buttons, count);
 }
 
 uint32_t debounce_get_total_blocks(DebounceManager *manager)
@@ -601,28 +772,28 @@ void debounce_reset_statistics(DebounceManager *manager)
     /* A button in the confirm window has a held-back release. Dropping the
        state without sending it leaves the OS thinking the button is down. */
     INPUT releases[MOUSE_BUTTON_COUNT] = {0};
+    MouseButton release_buttons[MOUSE_BUTTON_COUNT];
     int release_count = 0;
 
     EnterCriticalSection(&manager->cs);
     for (int i = 0; i < MOUSE_BUTTON_COUNT; i++)
     {
-        if (manager->buttons[i].state == BTN_STATE_CONFIRMING)
+        if (take_pending_release_locked(manager, (MouseButton)i, &releases[release_count]))
         {
-            DWORD flags, mouse_data;
-            if (get_button_up((MouseButton)i, &flags, &mouse_data))
-            {
-                releases[release_count].type = INPUT_MOUSE;
-                releases[release_count].mi.dwFlags = flags;
-                releases[release_count].mi.mouseData = mouse_data;
-                release_count++;
-            }
+            release_buttons[release_count] = (MouseButton)i;
+            release_count++;
         }
 
         manager->buttons[i].blocks = 0;
-        manager->buttons[i].state = BTN_STATE_IDLE;
+        /* A press already blocked as bounce has not seen its up yet. Clearing
+           BLOCKED here would let that up through as a release the target never
+           saw a press for, so keep BLOCKED and let it swallow the up. */
+        if (manager->buttons[i].state != BTN_STATE_BLOCKED)
+            manager->buttons[i].state = BTN_STATE_IDLE;
+        manager->buttons[i].releaseWasDrag = false;
         manager->buttons[i].wheelDirection = 0;
     }
     LeaveCriticalSection(&manager->cs);
 
-    debounce_enqueue_inputs(manager, releases, release_count);
+    debounce_enqueue_inputs(manager, releases, release_buttons, release_count);
 }

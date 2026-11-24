@@ -2,6 +2,7 @@
 
 #include <windows.h>
 #include "../core/debouncer.h"
+#include "../utils/store_license.h"
 
 // Quick threshold choices shown in each button submenu. Shared with the
 // WM_COMMAND handler in main.c so the values live in one place.
@@ -16,10 +17,10 @@ typedef struct
 } ContextMenuManager;
 
 // Show context menu at specified position
-bool context_menu_show(ContextMenuManager *manager, HWND hwnd, int x, int y, DebounceManager *debounce);
+bool context_menu_show(ContextMenuManager *manager, HWND hwnd, int x, int y, DebounceManager *debounce, const StoreLicenseInfo *license);
 
 // Create and populate menu items
-bool context_menu_create(ContextMenuManager *manager, DebounceManager *debounce);
+bool context_menu_create(ContextMenuManager *manager, DebounceManager *debounce, const StoreLicenseInfo *license);
 
 // Destroy context menu
 void context_menu_destroy(ContextMenuManager *manager);
